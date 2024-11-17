@@ -1,14 +1,15 @@
 {
     "version": 2,
     "builds": [
-      { "src": "api/routes.py", "use": "@vercel/python" }
+      { "src": "api/routes.py", "use": "@vercel/python", "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" } }
     ],
     "routes": [
       { "src": "/(.*)", "dest": "api/routes.py" }
     ],
-    "build": {
-      "env": {
-        "FFMPEG_PATH": "/usr/bin/ffmpeg"
+    "functions": {
+      "api/routes.py": {
+        "memory": 1024,
+        "maxDuration": 10
       }
     }
   }
