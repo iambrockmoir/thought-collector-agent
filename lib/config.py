@@ -1,28 +1,25 @@
-from pydantic_settings import BaseSettings
-from functools import lru_cache
+from pydantic import BaseModel
+from dotenv import load_dotenv
+import os
 
-class Settings(BaseSettings):
-    # Twilio settings
-    twilio_account_sid: str
-    twilio_auth_token: str
-    twilio_phone_number: str
-    test_phone_number: str  # Added this line for test phone number
-    
+load_dotenv()
+
+class Settings(BaseModel):
     # OpenAI settings
-    openai_api_key: str
+    openai_api_key: str = os.getenv('OPENAI_API_KEY', '')
     
-    # Database settings
-    supabase_url: str = ""  # Optional for now
-    supabase_key: str = ""  # Optional for now
+    # Twilio settings
+    twilio_account_sid: str = os.getenv('TWILIO_ACCOUNT_SID', '')
+    twilio_auth_token: str = os.getenv('TWILIO_AUTH_TOKEN', '')
+    twilio_phone_number: str = os.getenv('TWILIO_PHONE_NUMBER', '')
+    
+    # Supabase settings
+    supabase_url: str = os.getenv('SUPABASE_URL', '')
+    supabase_key: str = os.getenv('SUPABASE_KEY', '')
     
     # Pinecone settings
-    pinecone_api_key: str = ""  # Optional for now
-    pinecone_environment: str = ""  # Optional for now
+    pinecone_api_key: str = os.getenv('PINECONE_API_KEY', '')
+    pinecone_environment: str = os.getenv('PINECONE_ENVIRONMENT', '')
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False  # This makes it case-insensitive
-
-@lru_cache()
-def get_settings():
+def get_settings() -> Settings:
     return Settings()
