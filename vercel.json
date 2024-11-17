@@ -5,5 +5,10 @@
     ],
     "routes": [
       { "src": "/(.*)", "dest": "api/routes.py" }
-    ]
+    ],
+    "build": {
+      "env": {
+        "FFMPEG_PATH": "/usr/bin/ffmpeg"
+      }
+    }
   }
