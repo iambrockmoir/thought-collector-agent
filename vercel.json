@@ -1,16 +1,20 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/routes.py", "use": "@vercel/python" }
+    { "src": "api/routes.py", "use": "@vercel/python" },
+    { "src": "api/webhook.py", "use": "@vercel/python" }
   ],
   "routes": [
     {
       "src": "/webhook",
-      "dest": "api/routes.py",
+      "dest": "api/webhook.py",
       "methods": ["POST"],
-      "continue": true
+      "continue": true,
+      "override": {
+        "auth": false
+      }
     },
-    { 
+    {
       "src": "/(.*)",
       "dest": "api/routes.py"
     }
