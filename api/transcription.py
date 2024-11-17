@@ -3,8 +3,6 @@ import requests
 import openai
 from lib.config import get_settings
 import tempfile
-from pydub import AudioSegment
-import os
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -14,40 +12,38 @@ class AudioProcessor:
         try:
             print(f"DEBUG: Downloading audio from {media_url}")
             # Download audio file
-            response = requests.get(media_url)
+            response = requests.get(
+                media_url,
+                headers={'Authorization': f'Basic {settings.twilio_auth}'}
+            )
             
-            # Save the AMR file
-            with tempfile.NamedTemporaryFile(suffix='.amr', delete=False) as amr_file:
-                amr_file.write(response.content)
-                amr_path = amr_file.name
+            if response.status_code != 200:
+                print(f"ERROR: Failed to download audio: {response.status_code}")
+                raise Exception("Failed to download audio")
             
-            print("DEBUG: Converting AMR to MP3")
-            # Convert AMR to MP3
-            audio = AudioSegment.from_file(amr_path, format="amr")
-            mp3_path = amr_path.replace('.amr', '.mp3')
-            audio.export(mp3_path, format="mp3")
+            # Save the audio file
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as audio_file:
+                audio_file.write(response.content)
+                audio_path = audio_file.name
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
-            with open(mp3_path, "rb") as audio_file:
+            with open(audio_path, "rb") as audio_file:
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
-                    file=audio_file
+                    file=audio_file,
+                    response_format="text"
                 )
             
-            # Clean up temporary files
-            os.remove(amr_path)
-            os.remove(mp3_path)
-            
-            print(f"DEBUG: Transcription result: {transcript.text}")
+            print(f"DEBUG: Transcription result: {transcript}")
             return {
-                "transcription": transcript.text,
-                "message": f"I heard: {transcript.text}"
+                "transcription": transcript,
+                "message": f"I heard: {transcript}"
             }
             
         except Exception as e:
             print(f"Error processing audio: {str(e)}")
             return {
                 "transcription": "",
-                "message": "Sorry, I couldn't process that audio. Please try again."
+                "message": "Sorry, I couldn't process that audio. Please try again. For best results, please record in a quiet environment and speak clearly."
             }
