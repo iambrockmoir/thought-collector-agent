@@ -3,6 +3,8 @@ import requests
 import openai
 from lib.config import get_settings
 import tempfile
+import mimetypes
+import os
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -12,26 +14,32 @@ class AudioProcessor:
         try:
             print(f"DEBUG: Processing media URL: {media_url}")
             
-            # Request WAV format directly
-            wav_url = media_url + ".wav"
-            print(f"DEBUG: Downloading WAV from: {wav_url}")
+            # Request OGG format
+            ogg_url = media_url + ".ogg"
+            print(f"DEBUG: Downloading OGG from: {ogg_url}")
             
             response = requests.get(
-                wav_url,
+                ogg_url,
                 auth=(settings.twilio_account_sid, settings.twilio_auth_token),
-                headers={'Accept': 'audio/wav'}
+                headers={'Accept': 'audio/ogg'}
             )
             
             if response.status_code != 200:
                 print(f"ERROR: Failed to download audio: {response.status_code}")
-                print(f"ERROR: Response content: {response.content[:200]}")  # First 200 bytes
+                print(f"ERROR: Response content: {response.content[:200]}")
                 raise Exception(f"Failed to download audio: {response.status_code}")
             
-            # Save the WAV file
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as audio_file:
+            # Save the OGG file
+            with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as audio_file:
                 audio_file.write(response.content)
                 audio_path = audio_file.name
-                print(f"DEBUG: Saved WAV file to: {audio_path}")
+                print(f"DEBUG: Saved OGG file to: {audio_path}")
+                
+                # Print file info
+                file_size = os.path.getsize(audio_path)
+                mime_type = mimetypes.guess_type(audio_path)[0]
+                print(f"DEBUG: File size: {file_size} bytes")
+                print(f"DEBUG: MIME type: {mime_type}")
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
@@ -41,6 +49,9 @@ class AudioProcessor:
                     file=audio_file,
                     response_format="text"
                 )
+            
+            # Clean up
+            os.remove(audio_path)
             
             print(f"DEBUG: Transcription result: {transcript}")
             return {
