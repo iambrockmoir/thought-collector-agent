@@ -1,9 +1,11 @@
 from typing import Dict, Any
 import requests
 import openai
+import openamr
+import numpy as np
 from lib.config import get_settings
 import tempfile
-import os
+import wave
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -11,42 +13,39 @@ openai.api_key = settings.openai_api_key
 class AudioProcessor:
     async def process_audio_message(self, media_url: str, user_phone: str) -> Dict[str, Any]:
         try:
-            print(f"DEBUG: Processing media URL: {media_url}")
-            
-            # Download the media content directly from the provided URL
+            print(f"DEBUG: Downloading AMR from {media_url}")
+            # Download AMR file
             response = requests.get(
                 media_url,
-                auth=(settings.twilio_account_sid, settings.twilio_auth_token),
-                headers={'Accept': 'audio/mp3'}  # Request MP3 format
+                auth=(settings.twilio_account_sid, settings.twilio_auth_token)
             )
             
             if response.status_code != 200:
-                print(f"ERROR: Failed to download audio: {response.status_code}")
-                print(f"ERROR: Response headers: {response.headers}")
                 raise Exception(f"Failed to download audio: {response.status_code}")
             
-            # Save as MP3
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as audio_file:
-                audio_file.write(response.content)
-                audio_path = audio_file.name
-                print(f"DEBUG: Saved audio file to: {audio_path}")
-                
-                # Print file info
-                file_size = os.path.getsize(audio_path)
-                print(f"DEBUG: File size: {file_size} bytes")
-                print(f"DEBUG: Content type from response: {response.headers.get('Content-Type')}")
+            print("DEBUG: Converting AMR to PCM")
+            # Convert AMR to PCM using openamr
+            pcm_data = openamr.amr_decode(response.content)
+            audio_array = np.frombuffer(pcm_data, dtype=np.int16)
+            
+            print("DEBUG: Creating WAV file")
+            # Create WAV file
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+                with wave.open(wav_file.name, 'wb') as wav:
+                    wav.setnchannels(1)  # Mono
+                    wav.setsampwidth(2)  # 2 bytes per sample
+                    wav.setframerate(8000)  # AMR standard sample rate
+                    wav.writeframes(audio_array.tobytes())
+                wav_path = wav_file.name
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
-            with open(audio_path, "rb") as audio_file:
+            with open(wav_path, "rb") as audio_file:
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     response_format="text"
                 )
-            
-            # Clean up
-            os.remove(audio_path)
             
             print(f"DEBUG: Transcription result: {transcript}")
             return {
@@ -56,10 +55,7 @@ class AudioProcessor:
             
         except Exception as e:
             print(f"Error processing audio: {str(e)}")
-            # Print full traceback for debugging
-            import traceback
-            print("Full error:", traceback.format_exc())
             return {
                 "transcription": "",
-                "message": "Sorry, I couldn't process that audio. Please try again. For best results, please record in a quiet environment and speak clearly."
+                "message": "Sorry, I couldn't process that audio. Please try again."
             }
