@@ -4,13 +4,15 @@
     { "src": "api/routes.py", "use": "@vercel/python" }
   ],
   "routes": [
+    {
+      "src": "/webhook",
+      "dest": "api/routes.py",
+      "methods": ["POST"],
+      "continue": true
+    },
     { 
       "src": "/(.*)",
-      "dest": "api/routes.py",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "headers": {
-        "Access-Control-Allow-Origin": "*"
-      }
+      "dest": "api/routes.py"
     }
   ]
 } 

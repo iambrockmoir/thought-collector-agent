@@ -1,43 +1,35 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, PlainTextResponse
+from fastapi.security import HTTPBasic
+from starlette.exceptions import HTTPException
 
 app = FastAPI()
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
-async def root():
-    return {"message": "API is running"}
+security = HTTPBasic(auto_error=False)
 
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
-        form = await request.form()
+        form_data = await request.form()
+        message_body = form_data.get('Body', '')
+        from_number = form_data.get('From', '')
         
-        # Log incoming request for debugging
-        print(f"Received webhook: {dict(form)}")
+        print(f"Received message: {message_body} from {from_number}")
         
-        # Create TwiML response
-        twiml_response = """<?xml version="1.0" encoding="UTF-8"?>
-                           <Response>
-                               <Message>Message received!</Message>
-                           </Response>"""
+        # Return a simple TwiML response
+        twiml = """<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                      <Message>Message received!</Message>
+                  </Response>"""
         
-        return Response(
-            content=twiml_response,
-            media_type="application/xml"
-        )
+        return Response(content=twiml, media_type="application/xml")
     except Exception as e:
         print(f"Error in webhook: {str(e)}")
-        return Response(
-            content="Error processing webhook",
+        return PlainTextResponse(
+            content=f"Error: {str(e)}",
             status_code=500
         )
+
+@app.get("/")
+async def root():
+    return {"message": "API is running"}
