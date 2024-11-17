@@ -1,22 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "api/routes.py", "use": "@vercel/python" },
-    { "src": "api/webhook.py", "use": "@vercel/python" }
-  ],
-  "routes": [
-    {
-      "src": "/webhook",
-      "dest": "api/webhook.py",
-      "methods": ["POST"],
-      "continue": true,
-      "override": {
-        "auth": false
-      }
-    },
-    {
-      "src": "/(.*)",
-      "dest": "api/routes.py"
-    }
-  ]
-} 
+    "version": 2,
+    "routes": [
+      { "src": "/sms", "dest": "/api/edge.js" }
+    ]
+  }

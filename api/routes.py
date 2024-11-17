@@ -1,34 +1,53 @@
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, PlainTextResponse
-from fastapi.security import HTTPBasic
-from starlette.exceptions import HTTPException
+from fastapi.responses import JSONResponse
+from twilio.twiml.messaging_response import MessagingResponse
+from api.chat import ChatEngine
+from api.transcription import AudioProcessor
+from lib.database import Database
 
 app = FastAPI()
-security = HTTPBasic(auto_error=False)
+chat_engine = ChatEngine()
+audio_processor = AudioProcessor()
+database = Database()
 
 @app.post("/webhook")
-async def webhook(request: Request):
+async def handle_webhook(request: Request):
     try:
-        form_data = await request.form()
-        message_body = form_data.get('Body', '')
-        from_number = form_data.get('From', '')
+        # Parse the incoming webhook
+        form = await request.form()
         
-        print(f"Received message: {message_body} from {from_number}")
+        # Get the message body and media URL
+        message_body = form.get("Body", "")
+        media_url = form.get("MediaUrl0")
+        user_phone = form.get("From")
         
-        # Return a simple TwiML response
-        twiml = """<?xml version="1.0" encoding="UTF-8"?>
-                  <Response>
-                      <Message>Message received!</Message>
-                  </Response>"""
+        # Handle audio message
+        if media_url:
+            result = await audio_processor.process_audio_message(
+                media_url=media_url,
+                user_phone=user_phone
+            )
+            return create_twiml_response(result["message"])
         
-        return Response(content=twiml, media_type="application/xml")
+        # Handle text message
+        elif message_body:
+            response = await chat_engine.process_query(
+                user_phone=user_phone,
+                message=message_body
+            )
+            return create_twiml_response(response["response"])
+            
+        else:
+            return create_twiml_response("Please send a text or audio message.")
+            
     except Exception as e:
-        print(f"Error in webhook: {str(e)}")
-        return PlainTextResponse(
-            content=f"Error: {str(e)}",
-            status_code=500
-        )
+        print(f"Error in webhook: {str(e)}")  # For logging
+        return create_twiml_response("Sorry, something went wrong. Please try again.")
+
+def create_twiml_response(message: str) -> str:
+    response = MessagingResponse()
+    response.message(message)
+    return str(response)
 
 @app.get("/")
 async def root():
