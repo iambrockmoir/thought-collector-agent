@@ -3,39 +3,35 @@ import requests
 import openai
 from lib.config import get_settings
 import tempfile
-from twilio.rest import Client
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
-twilio_client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 
 class AudioProcessor:
     async def process_audio_message(self, media_url: str, user_phone: str) -> Dict[str, Any]:
         try:
             print(f"DEBUG: Processing media URL: {media_url}")
             
-            # Extract SID from the media URL
-            media_sid = media_url.split('/')[-1]
-            message_sid = media_url.split('/')[-3]
+            # Request WAV format directly
+            wav_url = media_url + ".wav"
+            print(f"DEBUG: Downloading WAV from: {wav_url}")
             
-            # Get media in MP3 format
-            media = twilio_client.messages(message_sid).media(media_sid).fetch()
-            mp3_url = f"{media.uri.replace('.json', '')}.mp3"
-            
-            print(f"DEBUG: Downloading MP3 from: {mp3_url}")
             response = requests.get(
-                f"https://api.twilio.com{mp3_url}",
-                auth=(settings.twilio_account_sid, settings.twilio_auth_token)
+                wav_url,
+                auth=(settings.twilio_account_sid, settings.twilio_auth_token),
+                headers={'Accept': 'audio/wav'}
             )
             
             if response.status_code != 200:
                 print(f"ERROR: Failed to download audio: {response.status_code}")
-                raise Exception("Failed to download audio")
+                print(f"ERROR: Response content: {response.content[:200]}")  # First 200 bytes
+                raise Exception(f"Failed to download audio: {response.status_code}")
             
-            # Save the MP3 file
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as audio_file:
+            # Save the WAV file
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as audio_file:
                 audio_file.write(response.content)
                 audio_path = audio_file.name
+                print(f"DEBUG: Saved WAV file to: {audio_path}")
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
