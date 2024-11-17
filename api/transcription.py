@@ -2,10 +2,9 @@ from typing import Dict, Any
 import requests
 import openai
 import openamr
-import numpy as np
+import wave
 from lib.config import get_settings
 import tempfile
-import wave
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -13,29 +12,30 @@ openai.api_key = settings.openai_api_key
 class AudioProcessor:
     async def process_audio_message(self, media_url: str, user_phone: str) -> Dict[str, Any]:
         try:
-            print(f"DEBUG: Downloading AMR from {media_url}")
-            # Download AMR file
+            print(f"DEBUG: Processing media URL: {media_url}")
+            
+            # Download AMR data
             response = requests.get(
                 media_url,
                 auth=(settings.twilio_account_sid, settings.twilio_auth_token)
             )
             
             if response.status_code != 200:
+                print(f"ERROR: Failed to download audio: {response.status_code}")
                 raise Exception(f"Failed to download audio: {response.status_code}")
             
             print("DEBUG: Converting AMR to PCM")
-            # Convert AMR to PCM using openamr
+            # Convert AMR to PCM
             pcm_data = openamr.amr_decode(response.content)
-            audio_array = np.frombuffer(pcm_data, dtype=np.int16)
             
             print("DEBUG: Creating WAV file")
-            # Create WAV file
+            # Save as WAV file
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
                 with wave.open(wav_file.name, 'wb') as wav:
                     wav.setnchannels(1)  # Mono
                     wav.setsampwidth(2)  # 2 bytes per sample
                     wav.setframerate(8000)  # AMR standard sample rate
-                    wav.writeframes(audio_array.tobytes())
+                    wav.writeframes(pcm_data)
                 wav_path = wav_file.name
             
             print("DEBUG: Transcribing with Whisper API")
@@ -57,5 +57,5 @@ class AudioProcessor:
             print(f"Error processing audio: {str(e)}")
             return {
                 "transcription": "",
-                "message": "Sorry, I couldn't process that audio. Please try again."
+                "message": "Sorry, I couldn't process that audio. Please try again. For best results, please record in a quiet environment and speak clearly."
             }
