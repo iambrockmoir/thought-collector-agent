@@ -1,6 +1,9 @@
 {
     "version": 2,
+    "builds": [
+      { "src": "api/routes.py", "use": "@vercel/python" }
+    ],
     "routes": [
-      { "src": "/sms", "dest": "/api/edge.js" }
+      { "src": "/(.*)", "dest": "api/routes.py" }
     ]
   }

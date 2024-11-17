@@ -1,2 +1,4 @@
 fastapi==0.104.1
+python-multipart==0.0.6
+twilio==9.3.6
 uvicorn==0.24.0
