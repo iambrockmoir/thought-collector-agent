@@ -1,48 +1,45 @@
 from typing import Dict, Any
 import requests
 import openai
-import openamr
-import numpy as np
 from lib.config import get_settings
 import tempfile
-import wave
-import io
+from twilio.rest import Client
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
+twilio_client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 
 class AudioProcessor:
     async def process_audio_message(self, media_url: str, user_phone: str) -> Dict[str, Any]:
         try:
-            print(f"DEBUG: Downloading audio from {media_url}")
-            # Download AMR file
+            print(f"DEBUG: Processing media URL: {media_url}")
+            
+            # Extract SID from the media URL
+            media_sid = media_url.split('/')[-1]
+            message_sid = media_url.split('/')[-3]
+            
+            # Get media in MP3 format
+            media = twilio_client.messages(message_sid).media(media_sid).fetch()
+            mp3_url = f"{media.uri.replace('.json', '')}.mp3"
+            
+            print(f"DEBUG: Downloading MP3 from: {mp3_url}")
             response = requests.get(
-                media_url,
-                headers={'Authorization': f'Basic {settings.twilio_auth}'}
+                f"https://api.twilio.com{mp3_url}",
+                auth=(settings.twilio_account_sid, settings.twilio_auth_token)
             )
             
             if response.status_code != 200:
                 print(f"ERROR: Failed to download audio: {response.status_code}")
                 raise Exception("Failed to download audio")
             
-            # Convert AMR to PCM
-            print("DEBUG: Converting AMR to PCM")
-            pcm_data = openamr.amr_decode(response.content)
-            audio_array = np.frombuffer(pcm_data, dtype=np.int16)
-            
-            # Save as WAV file
-            print("DEBUG: Saving as WAV")
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
-                with wave.open(wav_file.name, 'wb') as wav:
-                    wav.setnchannels(1)  # Mono
-                    wav.setsampwidth(2)  # 2 bytes per sample
-                    wav.setframerate(8000)  # AMR standard sample rate
-                    wav.writeframes(audio_array.tobytes())
-                wav_path = wav_file.name
+            # Save the MP3 file
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as audio_file:
+                audio_file.write(response.content)
+                audio_path = audio_file.name
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
-            with open(wav_path, "rb") as audio_file:
+            with open(audio_path, "rb") as audio_file:
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
