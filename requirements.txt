@@ -8,3 +8,4 @@ pydantic==2.5.2
 supabase==2.0.3
 pinecone-client==3.0.0
 pydub==0.25.1
+requests==2.31.0
