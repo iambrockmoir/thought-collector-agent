@@ -5,6 +5,7 @@ import wave
 import audioop
 from lib.config import get_settings
 import tempfile
+import os
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -24,20 +25,25 @@ class AudioProcessor:
                 print(f"ERROR: Failed to download audio: {response.status_code}")
                 raise Exception(f"Failed to download audio: {response.status_code}")
             
-            print("DEBUG: Converting audio")
-            # Convert to PCM
-            pcm_data = audioop.lin2lin(response.content, 1, 2)  # Convert to 16-bit
-            pcm_data = audioop.ratecv(pcm_data, 2, 1, 8000, 16000, None)[0]  # Upsample to 16kHz
+            print(f"DEBUG: Downloaded audio size: {len(response.content)} bytes")
+            print(f"DEBUG: Content type: {response.headers.get('Content-Type')}")
             
-            print("DEBUG: Creating WAV file")
-            # Save as WAV file
+            # Save original AMR file for debugging
+            with tempfile.NamedTemporaryFile(suffix='.amr', delete=False) as amr_file:
+                amr_file.write(response.content)
+                print(f"DEBUG: Saved original AMR to: {amr_file.name}")
+            
+            print("DEBUG: Converting audio")
+            # Try direct conversion to WAV
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
                 with wave.open(wav_file.name, 'wb') as wav:
                     wav.setnchannels(1)  # Mono
                     wav.setsampwidth(2)  # 2 bytes per sample
-                    wav.setframerate(16000)  # 16kHz sample rate
-                    wav.writeframes(pcm_data)
+                    wav.setframerate(8000)  # AMR standard rate
+                    wav.writeframes(response.content)
                 wav_path = wav_file.name
+                
+                print(f"DEBUG: WAV file size: {os.path.getsize(wav_path)} bytes")
             
             print("DEBUG: Transcribing with Whisper API")
             # Use OpenAI's Whisper API
@@ -48,7 +54,14 @@ class AudioProcessor:
                     response_format="text"
                 )
             
-            print(f"DEBUG: Transcription result: {transcript}")
+            print(f"DEBUG: Transcription result: '{transcript}'")
+            
+            if not transcript.strip():
+                return {
+                    "transcription": "",
+                    "message": "I couldn't understand that audio. Please try speaking clearly and close to the microphone."
+                }
+            
             return {
                 "transcription": transcript,
                 "message": f"I heard: {transcript}"
