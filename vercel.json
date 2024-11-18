@@ -1,7 +1,7 @@
 {
     "version": 2,
     "builds": [
-      { "src": "api/routes.py", "use": "@vercel/python@3.1.0", "config": { "runtime": "python3.8", "maxLambdaSize": "15mb" } }
+      { "src": "api/routes.py", "use": "@vercel/python" }
     ],
     "routes": [
       { "src": "/(.*)", "dest": "api/routes.py" }
