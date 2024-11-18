@@ -1,9 +1,14 @@
 from flask import Flask, jsonify, request
 from twilio.twiml.messaging_response import MessagingResponse
 import logging
+import sys
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout  # This ensures logs go to Vercel
+)
 logger = logging.getLogger(__name__)
 
 # Initialize Flask
@@ -46,14 +51,22 @@ def debug_info():
 def handle_sms():
     """Handle incoming SMS messages"""
     try:
-        logger.info("Received SMS webhook")
-        # Create TwiML response
-        resp = MessagingResponse()
-        resp.message("Thanks for your message! I'm currently being updated, please try again in a few minutes.")
+        form_data = request.form.to_dict()
+        logger.info(f"Received SMS webhook with data: {form_data}")
         
-        return str(resp), 200, {'Content-Type': 'text/xml'}
+        message_body = form_data.get('Body', '')
+        from_number = form_data.get('From', '')
+        logger.info(f"Processing message '{message_body}' from {from_number}")
+        
+        resp = MessagingResponse()
+        resp.message("Thanks for your message! I'm currently being updated.")
+        
+        response_text = str(resp)
+        logger.info(f"Sending response: {response_text}")
+        return response_text, 200, {'Content-Type': 'text/xml'}
+        
     except Exception as e:
-        logger.error(f"SMS handling failed: {str(e)}")
+        logger.error(f"SMS handling failed: {str(e)}", exc_info=True)
         resp = MessagingResponse()
         resp.message("Sorry, something went wrong. Please try again later.")
         return str(resp), 200, {'Content-Type': 'text/xml'}
