@@ -4,10 +4,9 @@ import openai
 from lib.config import get_settings
 import tempfile
 import os
-from amr_utils.amr_readers import AMR_Reader
-import wave
-import numpy as np
 from io import BytesIO
+from lib.database import Database
+from datetime import datetime
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -17,7 +16,7 @@ class AudioProcessor:
         try:
             print(f"DEBUG: Processing media URL: {media_url}")
             
-            # Download AMR file
+            # Download audio from Twilio
             response = requests.get(
                 media_url,
                 auth=(settings.twilio_account_sid, settings.twilio_auth_token)
@@ -27,67 +26,58 @@ class AudioProcessor:
                 print(f"ERROR: Failed to download audio: {response.status_code}")
                 raise Exception(f"Failed to download audio: {response.status_code}")
             
-            # Save AMR file
-            with tempfile.NamedTemporaryFile(suffix='.amr', delete=False) as amr_file:
-                amr_file.write(response.content)
-                amr_path = amr_file.name
-                print(f"DEBUG: Saved AMR file: {amr_path}")
+            # Send to Rails converter service
+            print("DEBUG: Converting audio format...")
+            files = {
+                'audio': ('audio.amr', BytesIO(response.content), 'audio/amr')
+            }
             
-            # Read AMR file
-            reader = AMR_Reader()
-            amr_data = reader.load(amr_path)
-            print(f"DEBUG: Loaded AMR data, length: {len(amr_data)}")
+            converter_response = requests.post(
+                'https://audio-converter-service-production.up.railway.app/convert',
+                files=files
+            )
             
-            # Convert to WAV
-            wav_path = amr_path.replace('.amr', '.wav')
-            with wave.open(wav_path, 'wb') as wav_file:
-                wav_file.setnchannels(1)  # Mono
-                wav_file.setsampwidth(2)  # 2 bytes per sample
-                wav_file.setframerate(8000)  # AMR standard sample rate
-                wav_file.writeframes(np.array(amr_data, dtype=np.int16).tobytes())
+            if converter_response.status_code != 200:
+                print(f"DEBUG: Conversion failed with status {converter_response.status_code}")
+                raise Exception(f"Conversion failed: {converter_response.text}")
             
-            print(f"DEBUG: Converted to WAV: {wav_path}")
+            print(f"DEBUG: Conversion successful, got {len(converter_response.content)} bytes of MP3")
             
-            # First convert AMR to MP3 if needed
-            if 'audio/amr' in response.headers.get('Content-Type', ''):
-                print("DEBUG: Converting AMR to MP3...")
-                files = {
-                    'audio': ('audio.amr', BytesIO(response.content), 'audio/amr')
-                }
-                converter_response = requests.post(
-                    'https://audio-converter-service-production.up.railway.app/convert',
-                    files=files
-                )
+            # Create temporary file for Whisper API
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_file.write(converter_response.content)
+                temp_path = temp_file.name
                 
-                if converter_response.status_code != 200:
-                    print(f"DEBUG: Conversion failed with status {converter_response.status_code}")
-                    raise Exception(f"Conversion failed: {converter_response.text}")
-                
-                response.content = converter_response.content
-                response.headers['Content-Type'] = 'audio/mp3'
-                print(f"DEBUG: Conversion successful, got {len(response.content)} bytes of MP3")
-            
-            # Create a temporary file with the correct extension
-            extension = 'mp3' if 'audio/mp3' in response.headers.get('Content-Type', '') else 'amr'
-            temp_filename = f'temp_audio.{extension}'
-            
-            # Save the audio data to a temporary file
-            with open(temp_filename, 'wb') as f:
-                f.write(response.content)
-            
-            print("DEBUG: Transcribing with Whisper API")
-            # Open the file and send to Whisper API
-            with open(temp_filename, 'rb') as audio_file:
+                print("DEBUG: Transcribing with Whisper API")
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
-                    file=audio_file,
+                    file=open(temp_path, 'rb'),
                     response_format="text"
                 )
-            
-            # Clean up the temporary file
-            os.remove(temp_filename)
+                
+                # Clean up temp file
+                os.remove(temp_path)
             
             print(f"DEBUG: Transcription result: {transcript}")
+            
+            # Store in database
+            try:
+                db = Database()
+                thought_data = {
+                    'user_phone': user_phone,
+                    'audio_url': media_url,
+                    'transcription': transcript,
+                    'metadata': {
+                        'source': 'sms',
+                        'timestamp': datetime.utcnow().isoformat()
+                    }
+                }
+                await db.store_thought(thought_data)
+                print("DEBUG: Thought stored in database")
+            except Exception as db_error:
+                print(f"WARNING: Database storage failed: {str(db_error)}")
+                # Continue even if storage fails - we can still return the transcription
+            
             return {
                 "transcription": transcript,
                 "message": f"I heard: {transcript}"

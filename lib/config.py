@@ -26,6 +26,10 @@ class Settings(BaseModel):
     # Pinecone settings
     pinecone_api_key: str = os.getenv('PINECONE_API_KEY', '')
     pinecone_environment: str = os.getenv('PINECONE_ENVIRONMENT', '')
+    
+    # Audio converter settings
+    audio_converter_url: str = os.getenv('AUDIO_CONVERTER_URL', 
+        'https://your-rails-app.railway.app/convert')
 
 def get_settings() -> Settings:
     return Settings()

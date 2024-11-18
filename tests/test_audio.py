@@ -4,6 +4,8 @@ import asyncio
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
+import pytest
+from unittest.mock import patch, MagicMock
 
 # Add project root to Python path
 project_root = str(Path(__file__).parent.parent)
@@ -20,36 +22,31 @@ from lib.config import get_settings
 load_dotenv()
 settings = get_settings()
 
+@pytest.mark.asyncio
 async def test_audio_processing():
-    logger.info("Starting audio processing test...")
-    
-    # Initialize processor
+    """Test the complete audio processing flow"""
     processor = AudioProcessor()
     
-    # Test audio URL (Twilio's sample audio)
-    test_url = "https://demo.twilio.com/docs/classic.mp3"
+    # Mock responses
+    mock_twilio_response = MagicMock()
+    mock_twilio_response.status_code = 200
+    mock_twilio_response.content = b"fake_audio_data"
     
-    # Twilio auth
-    auth = (settings.twilio_account_sid, settings.twilio_auth_token)
+    mock_converter_response = MagicMock()
+    mock_converter_response.status_code = 200
+    mock_converter_response.content = b"fake_mp3_data"
     
-    try:
-        # Process audio
-        logger.info("Processing audio from URL: %s", test_url)
+    with patch('requests.get', return_value=mock_twilio_response), \
+         patch('requests.post', return_value=mock_converter_response), \
+         patch('openai.audio.transcriptions.create', return_value="Test transcription"):
+        
         result = await processor.process_audio_message(
-            media_url=test_url,
-            user_phone="+1234567890",
-            auth=auth
+            media_url="https://fake-url.com/audio.amr",
+            user_phone="+1234567890"
         )
         
-        logger.info("Processing completed successfully")
-        print("\nProcessing Result:")
-        print(f"Status: {result['status']}")
-        print(f"Message: {result['message']}")
-        print(f"\nFull Transcription: {result['transcription']}")
-        
-    except Exception as e:
-        logger.error("Error during audio processing: %s", str(e))
-        print(f"\nError: {str(e)}")
+        assert result["transcription"] == "Test transcription"
+        assert "I heard: Test transcription" in result["message"]
 
 if __name__ == "__main__":
     asyncio.run(test_audio_processing())
