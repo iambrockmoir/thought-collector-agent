@@ -8,8 +8,13 @@ app = FastAPI()
 chat_engine = ChatEngine()
 audio_processor = AudioProcessor()
 
-@app.post("/webhook")
-async def handle_webhook(request: Request):
+@app.get("/")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "message": "ThoughtCollector API is running"}
+
+@app.post("/api/sms")
+async def handle_sms_webhook(request: Request):
     try:
         form = await request.form()
         print("DEBUG: Received webhook data:", dict(form))
@@ -67,3 +72,9 @@ async def handle_webhook(request: Request):
             media_type="application/xml",
             headers={"Content-Type": "application/xml; charset=utf-8"}
         )
+
+# Keep the old endpoint for backward compatibility
+@app.post("/webhook")
+async def legacy_webhook(request: Request):
+    """Redirect old webhook endpoint to new one"""
+    return await handle_sms_webhook(request)
