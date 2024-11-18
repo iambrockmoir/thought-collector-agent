@@ -1,7 +1,21 @@
 {
+  "name": "thought-collector-agent",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
   "dependencies": {
     "axios": "^1.6.0",
-    "twilio": "^4.19.0"
-    // ... other dependencies ...
+    "twilio": "^4.19.0",
+    "@vercel/python": "^4.1.0",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "vercel": "^32.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 } 
