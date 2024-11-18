@@ -1,6 +1,5 @@
 {
     "version": 2,
-    "framework": "python",
     "builds": [
       { "src": "api/routes.py", "use": "@vercel/python", "config": { "runtime": "python3.9", "maxLambdaSize": "15mb" } }
     ],
