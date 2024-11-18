@@ -4,6 +4,9 @@ import logging
 import sys
 import os
 from openai import OpenAI
+import requests
+from urllib.parse import urlparse
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -19,6 +22,8 @@ app = Flask(__name__)
 # Check OpenAI configuration
 openai_key = os.getenv('OPENAI_API_KEY')
 logger.info(f"OpenAI API Key available: {bool(openai_key)}")
+audio_converter_url = os.getenv('AUDIO_CONVERTER_URL')
+logger.info(f"Audio Converter URL available: {bool(audio_converter_url)}")
 
 try:
     client = OpenAI(api_key=openai_key)
@@ -26,6 +31,50 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
     client = None
+
+def process_audio_message(media_url):
+    """Process an audio message"""
+    try:
+        logger.info(f"Processing audio from URL: {media_url}")
+        
+        # Convert audio using the converter service
+        converter_response = requests.post(
+            audio_converter_url,
+            json={"url": media_url}
+        )
+        logger.info(f"Converter response status: {converter_response.status_code}")
+        
+        if converter_response.status_code != 200:
+            logger.error(f"Converter error: {converter_response.text}")
+            return "Sorry, I had trouble processing your audio message."
+            
+        converted_url = converter_response.json().get("url")
+        if not converted_url:
+            logger.error("No converted URL received")
+            return "Sorry, I couldn't convert your audio message."
+            
+        logger.info(f"Audio converted successfully: {converted_url}")
+        
+        # Transcribe the audio
+        audio_file = requests.get(converted_url)
+        with open("/tmp/audio.mp3", "wb") as f:
+            f.write(audio_file.content)
+            
+        with open("/tmp/audio.mp3", "rb") as f:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f
+            )
+        
+        transcribed_text = transcript.text
+        logger.info(f"Transcribed text: {transcribed_text}")
+        
+        # Process the transcribed text
+        return process_chat_message(transcribed_text)
+        
+    except Exception as e:
+        logger.error(f"Audio processing failed: {str(e)}", exc_info=True)
+        return "Sorry, I had trouble processing your audio message. Please try again."
 
 def process_chat_message(message):
     """Process a chat message using OpenAI"""
@@ -83,14 +132,13 @@ def handle_sms():
         from_number = form_data.get('From', '')
         media_url = form_data.get('MediaUrl0', '')
         
-        logger.info(f"Processing message '{message_body}' from {from_number}")
+        logger.info(f"Processing message from {from_number}")
         if media_url:
             logger.info(f"Media URL received: {media_url}")
-            reply = "I see you sent me some media! I'll be able to process that soon."
+            reply = process_audio_message(media_url)
         else:
-            logger.info("Calling process_chat_message")
+            logger.info(f"Processing text message: {message_body}")
             reply = process_chat_message(message_body)
-            logger.info(f"Received reply from process_chat_message: {reply}")
         
         resp = MessagingResponse()
         resp.message(reply)
