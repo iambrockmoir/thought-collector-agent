@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
 from twilio.twiml.messaging_response import MessagingResponse
 import logging
 import sys
@@ -7,7 +7,7 @@ import sys
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout  # This ensures logs go to Vercel
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
@@ -30,22 +30,11 @@ def health_check():
             "message": str(e)
         }), 500
 
-@app.route('/debug')
-def debug_info():
-    """Debug endpoint"""
-    try:
-        import sys
-        return jsonify({
-            "python_version": sys.version,
-            "endpoints": [
-                {"path": "/", "methods": ["GET"]},
-                {"path": "/debug", "methods": ["GET"]},
-                {"path": "/api/sms", "methods": ["POST"]}
-            ]
-        })
-    except Exception as e:
-        logger.error(f"Debug info failed: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+@app.route('/webhook', methods=['POST'])
+def legacy_webhook():
+    """Handle legacy webhook endpoint"""
+    logger.info("Received request to legacy webhook, redirecting to /api/sms")
+    return handle_sms()
 
 @app.route('/api/sms', methods=['POST'])
 def handle_sms():
@@ -56,7 +45,11 @@ def handle_sms():
         
         message_body = form_data.get('Body', '')
         from_number = form_data.get('From', '')
+        media_url = form_data.get('MediaUrl0', '')
+        
         logger.info(f"Processing message '{message_body}' from {from_number}")
+        if media_url:
+            logger.info(f"Media URL received: {media_url}")
         
         resp = MessagingResponse()
         resp.message("Thanks for your message! I'm currently being updated.")
@@ -70,6 +63,23 @@ def handle_sms():
         resp = MessagingResponse()
         resp.message("Sorry, something went wrong. Please try again later.")
         return str(resp), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/debug')
+def debug_info():
+    """Debug endpoint"""
+    try:
+        return jsonify({
+            "python_version": sys.version,
+            "endpoints": [
+                {"path": "/", "methods": ["GET"]},
+                {"path": "/debug", "methods": ["GET"]},
+                {"path": "/api/sms", "methods": ["POST"]},
+                {"path": "/webhook", "methods": ["POST"]}
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Debug info failed: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # For local development
 if __name__ == '__main__':
