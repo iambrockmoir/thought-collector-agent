@@ -5,15 +5,5 @@
     ],
     "routes": [
       { "src": "/(.*)", "dest": "api/routes.py" }
-    ],
-    "env": {
-      "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-      "TWILIO_ACCOUNT_SID": "${TWILIO_ACCOUNT_SID}",
-      "TWILIO_AUTH_TOKEN": "${TWILIO_AUTH_TOKEN}",
-      "SUPABASE_URL": "${SUPABASE_URL}",
-      "SUPABASE_KEY": "${SUPABASE_KEY}",
-      "PINECONE_API_KEY": "${PINECONE_API_KEY}",
-      "PINECONE_ENVIRONMENT": "${PINECONE_ENVIRONMENT}",
-      "AUDIO_CONVERTER_URL": "${AUDIO_CONVERTER_URL}"
-    }
+    ]
   } 
