@@ -13,13 +13,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask and OpenAI
+# Initialize Flask
 app = Flask(__name__)
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+# Check OpenAI configuration
+openai_key = os.getenv('OPENAI_API_KEY')
+logger.info(f"OpenAI API Key available: {bool(openai_key)}")
+
+try:
+    client = OpenAI(api_key=openai_key)
+    logger.info("OpenAI client initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
+    client = None
 
 def process_chat_message(message):
     """Process a chat message using OpenAI"""
     try:
+        if not client:
+            logger.error("OpenAI client not initialized")
+            return "Sorry, I'm having trouble connecting to my brain right now."
+            
         logger.info(f"Processing chat message: {message}")
         response = client.chat.completions.create(
             model="gpt-4",
@@ -34,7 +48,7 @@ def process_chat_message(message):
         return reply
     except Exception as e:
         logger.error(f"Chat processing failed: {str(e)}", exc_info=True)
-        return "I'm having trouble processing your message right now. Please try again later."
+        return f"I'm having trouble processing your message right now. Error: {str(e)}"
 
 @app.route('/')
 def health_check():
@@ -55,7 +69,7 @@ def health_check():
 @app.route('/webhook', methods=['POST'])
 def legacy_webhook():
     """Handle legacy webhook endpoint"""
-    logger.info("Received request to legacy webhook, redirecting to /api/sms")
+    logger.info("Received request to legacy webhook")
     return handle_sms()
 
 @app.route('/api/sms', methods=['POST'])
@@ -72,9 +86,14 @@ def handle_sms():
         logger.info(f"Processing message '{message_body}' from {from_number}")
         if media_url:
             logger.info(f"Media URL received: {media_url}")
+            reply = "I see you sent me some media! I'll be able to process that soon."
+        else:
+            logger.info("Calling process_chat_message")
+            reply = process_chat_message(message_body)
+            logger.info(f"Received reply from process_chat_message: {reply}")
         
         resp = MessagingResponse()
-        resp.message("Thanks for your message! I'm currently being updated.")
+        resp.message(reply)
         
         response_text = str(resp)
         logger.info(f"Sending response: {response_text}")
@@ -83,7 +102,7 @@ def handle_sms():
     except Exception as e:
         logger.error(f"SMS handling failed: {str(e)}", exc_info=True)
         resp = MessagingResponse()
-        resp.message("Sorry, something went wrong. Please try again later.")
+        resp.message(f"Sorry, something went wrong. Error: {str(e)}")
         return str(resp), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/debug')
