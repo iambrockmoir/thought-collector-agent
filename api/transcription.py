@@ -7,6 +7,7 @@ import os
 from amr_utils.amr_readers import AMR_Reader
 import wave
 import numpy as np
+from io import BytesIO
 
 settings = get_settings()
 openai.api_key = settings.openai_api_key
@@ -47,17 +48,44 @@ class AudioProcessor:
             
             print(f"DEBUG: Converted to WAV: {wav_path}")
             
-            # Transcribe with Whisper
-            with open(wav_path, "rb") as audio_file:
+            # First convert AMR to MP3 if needed
+            if 'audio/amr' in response.headers.get('Content-Type', ''):
+                print("DEBUG: Converting AMR to MP3...")
+                files = {
+                    'audio': ('audio.amr', BytesIO(response.content), 'audio/amr')
+                }
+                converter_response = requests.post(
+                    'https://audio-converter-service-production.up.railway.app/convert',
+                    files=files
+                )
+                
+                if converter_response.status_code != 200:
+                    print(f"DEBUG: Conversion failed with status {converter_response.status_code}")
+                    raise Exception(f"Conversion failed: {converter_response.text}")
+                
+                response.content = converter_response.content
+                response.headers['Content-Type'] = 'audio/mp3'
+                print(f"DEBUG: Conversion successful, got {len(response.content)} bytes of MP3")
+            
+            # Create a temporary file with the correct extension
+            extension = 'mp3' if 'audio/mp3' in response.headers.get('Content-Type', '') else 'amr'
+            temp_filename = f'temp_audio.{extension}'
+            
+            # Save the audio data to a temporary file
+            with open(temp_filename, 'wb') as f:
+                f.write(response.content)
+            
+            print("DEBUG: Transcribing with Whisper API")
+            # Open the file and send to Whisper API
+            with open(temp_filename, 'rb') as audio_file:
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     response_format="text"
                 )
             
-            # Clean up
-            os.remove(amr_path)
-            os.remove(wav_path)
+            # Clean up the temporary file
+            os.remove(temp_filename)
             
             print(f"DEBUG: Transcription result: {transcript}")
             return {
