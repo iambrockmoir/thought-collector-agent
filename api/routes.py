@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request, redirect
 from twilio.twiml.messaging_response import MessagingResponse
 import logging
 import sys
+import os
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(
@@ -11,8 +13,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask
+# Initialize Flask and OpenAI
 app = Flask(__name__)
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+def process_chat_message(message):
+    """Process a chat message using OpenAI"""
+    try:
+        logger.info(f"Processing chat message: {message}")
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant who responds in a friendly, conversational way."},
+                {"role": "user", "content": message}
+            ],
+            max_tokens=150
+        )
+        reply = response.choices[0].message.content
+        logger.info(f"Generated reply: {reply}")
+        return reply
+    except Exception as e:
+        logger.error(f"Chat processing failed: {str(e)}", exc_info=True)
+        return "I'm having trouble processing your message right now. Please try again later."
 
 @app.route('/')
 def health_check():
