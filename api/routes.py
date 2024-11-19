@@ -37,12 +37,31 @@ def process_audio_message(media_url):
     try:
         logger.info(f"Processing audio from URL: {media_url}")
         
-        # Convert audio using the converter service
+        # Download the audio file from Twilio
+        audio_response = requests.get(media_url)
+        if audio_response.status_code != 200:
+            logger.error(f"Failed to download audio from Twilio: {audio_response.status_code}")
+            return "Sorry, I had trouble downloading your audio message."
+            
+        # Save the audio file temporarily
+        with open("/tmp/original_audio.mp3", "wb") as f:
+            f.write(audio_response.content)
+            
+        logger.info("Downloaded audio file from Twilio")
+        
+        # Send the file to the converter service
+        files = {
+            'file': ('audio.mp3', open('/tmp/original_audio.mp3', 'rb'), 'audio/mpeg')
+        }
+        
+        logger.info(f"Sending to converter service: {audio_converter_url}")
         converter_response = requests.post(
             audio_converter_url,
-            json={"url": media_url}
+            files=files
         )
+        
         logger.info(f"Converter response status: {converter_response.status_code}")
+        logger.info(f"Converter response: {converter_response.text}")
         
         if converter_response.status_code != 200:
             logger.error(f"Converter error: {converter_response.text}")
@@ -55,11 +74,12 @@ def process_audio_message(media_url):
             
         logger.info(f"Audio converted successfully: {converted_url}")
         
-        # Transcribe the audio
-        audio_file = requests.get(converted_url)
+        # Download the converted audio
+        converted_audio = requests.get(converted_url)
         with open("/tmp/audio.mp3", "wb") as f:
-            f.write(audio_file.content)
+            f.write(converted_audio.content)
             
+        # Transcribe the audio
         with open("/tmp/audio.mp3", "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
@@ -74,7 +94,7 @@ def process_audio_message(media_url):
         
     except Exception as e:
         logger.error(f"Audio processing failed: {str(e)}", exc_info=True)
-        return "Sorry, I had trouble processing your audio message. Please try again."
+        return f"Sorry, I had trouble processing your audio message. Error: {str(e)}"
 
 def process_chat_message(message):
     """Process a chat message using OpenAI"""
