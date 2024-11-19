@@ -51,14 +51,13 @@ supabase = create_client(
     os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Pinecone with serverless config
+# Initialize Pinecone
 pinecone.init(
-    api_key=os.getenv('PINECONE_API_KEY'),
-    environment="us-east-1"  # AWS region for serverless
+    api_key=os.getenv('PINECONE_API_KEY')
 )
 
 # Get the index
-index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
+index_name = "thoughts-index-qt78i74"  # Use the exact index name from your dashboard
 
 # Add debug logging
 logger.info(f"Initializing Pinecone index: {index_name}")
