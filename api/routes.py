@@ -321,17 +321,72 @@ def webhook():
         # Handle audio messages
         if content_type and media_url:
             logger.info("Processing audio message")
-            # Start async processing
-            thread = threading.Thread(
-                target=process_audio_message_async,
-                args=(media_url, from_number)
-            )
-            thread.start()
-            
-            # Send immediate acknowledgment
-            resp = MessagingResponse()
-            resp.message("Processing your audio message...")
-            return str(resp), 200, {'Content-Type': 'text/xml'}
+            # Process directly instead of async
+            try:
+                # Download from Twilio
+                auth = (twilio_account_sid, twilio_auth_token)
+                logger.info("Downloading from Twilio...")
+                audio_response = requests.get(media_url, auth=auth, timeout=30)
+                
+                if audio_response.status_code != 200:
+                    logger.error(f"Twilio download failed: {audio_response.status_code}")
+                    resp = MessagingResponse()
+                    resp.message("Sorry, I couldn't download your audio.")
+                    return str(resp), 200, {'Content-Type': 'text/xml'}
+                    
+                # Save the audio file
+                with open("/tmp/original_audio.amr", "wb") as f:
+                    f.write(audio_response.content)
+                    
+                # Convert audio
+                with open("/tmp/original_audio.amr", "rb") as audio_file:
+                    files = {
+                        'audio': ('audio.amr', audio_file, 'audio/amr')
+                    }
+                    converter_response = requests.post(
+                        audio_converter_url,
+                        files=files,
+                        timeout=30
+                    )
+                    
+                if converter_response.status_code != 200:
+                    logger.error(f"Converter failed: {converter_response.status_code}")
+                    resp = MessagingResponse()
+                    resp.message("Sorry, I had trouble converting your audio.")
+                    return str(resp), 200, {'Content-Type': 'text/xml'}
+                    
+                # Save converted audio
+                with open("/tmp/audio.mp3", "wb") as f:
+                    f.write(converter_response.content)
+                
+                # Transcribe
+                with open("/tmp/audio.mp3", "rb") as f:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=f
+                    )
+                
+                transcribed_text = transcript.text
+                logger.info(f"Transcription result: {transcribed_text}")
+                
+                # Store thought
+                thought_id = store_thought(
+                    phone_number=from_number,
+                    audio_url=media_url,
+                    transcription=transcribed_text,
+                    metadata={'source': 'twilio'}
+                )
+                
+                # Send success response
+                resp = MessagingResponse()
+                resp.message("Thought saved!")
+                return str(resp), 200, {'Content-Type': 'text/xml'}
+                
+            except Exception as e:
+                logger.error(f"Audio processing failed: {str(e)}", exc_info=True)
+                resp = MessagingResponse()
+                resp.message("Sorry, something went wrong processing your audio.")
+                return str(resp), 200, {'Content-Type': 'text/xml'}
             
         # Handle text messages
         elif body:
