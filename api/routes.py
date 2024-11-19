@@ -270,18 +270,74 @@ def handle_sms():
     """Handle incoming SMS messages"""
     try:
         form_data = request.form.to_dict()
-        message_body = form_data.get('Body', '')
         from_number = form_data.get('From', '')
         media_url = form_data.get('MediaUrl0', '')
         
         if media_url:
-            # Store the thought immediately
-            thought_id = store_thought(from_number, media_url)
+            logger.info(f"Received audio from {from_number}: {media_url}")
             
-            # Simple confirmation
-            resp = MessagingResponse()
-            resp.message("✓ Thought received")
-            return str(resp), 200, {'Content-Type': 'text/xml'}
+            # Download from Twilio
+            auth = (twilio_account_sid, twilio_auth_token)
+            audio_response = requests.get(media_url, auth=auth)
+            
+            if audio_response.status_code != 200:
+                logger.error(f"Twilio download failed: {audio_response.status_code}")
+                send_twilio_message(from_number, "Sorry, I couldn't download your audio.")
+                return
+            
+            logger.info("Successfully downloaded from Twilio")
+            
+            # Process audio through converter service...
+            # (existing audio conversion code)
+            
+            # Transcribe
+            logger.info("Starting transcription...")
+            with open("/tmp/audio.mp3", "rb") as f:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f
+                )
+            
+            transcribed_text = transcript.text
+            logger.info(f"Transcription result: {transcribed_text}")
+            
+            # Store thought
+            thought_id = store_thought(
+                phone_number=from_number,
+                audio_url=media_url,
+                transcription=transcribed_text,
+                metadata={
+                    'source': 'twilio',
+                    'content_type': audio_response.headers.get('Content-Type')
+                }
+            )
+            
+            # Process transcribed text
+            logger.info("Processing transcribed text with ChatGPT...")
+            response = process_chat_message(transcribed_text, from_number)
+            logger.info(f"ChatGPT response: {response}")
+            
+            # Update chat message with related thought
+            if thought_id:
+                # Get the last two chat messages (user's transcribed message and AI's response)
+                recent_chats = supabase.table('chat_history')\
+                    .select('id')\
+                    .eq('user_phone', from_number)\
+                    .order('created_at', desc=True)\
+                    .limit(2)\
+                    .execute()
+                    
+                for chat in recent_chats.data:
+                    supabase.table('chat_history')\
+                        .update({'related_thoughts': [thought_id]})\
+                        .eq('id', chat['id'])\
+                        .execute()
+            
+            # Send final response
+            logger.info(f"Sending response to {from_number}")
+            send_twilio_message(from_number, f"I heard: '{transcribed_text}'\n\nMy response: {response}")
+            logger.info("Response sent successfully")
+            
         else:
             # Handle text messages as before
             reply = process_chat_message(message_body, from_number)
