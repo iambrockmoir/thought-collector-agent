@@ -51,6 +51,8 @@ def process_audio_message(media_url):
         audio_response = requests.get(media_url, auth=auth)
         
         logger.info(f"Twilio download status: {audio_response.status_code}")
+        logger.info(f"Twilio content type: {audio_response.headers.get('Content-Type')}")
+        
         if audio_response.status_code != 200:
             logger.error(f"Failed to download audio from Twilio: {audio_response.status_code}")
             logger.error(f"Response content: {audio_response.text}")
@@ -64,16 +66,16 @@ def process_audio_message(media_url):
         logger.info("Successfully saved audio file")
         
         # Send to converter service
-        converter_url = f"{audio_converter_url}/convert"
-        logger.info(f"Sending to converter service: {converter_url}")
+        logger.info(f"Sending to converter service: {audio_converter_url}")
         
         with open("/tmp/original_audio.amr", "rb") as audio_file:
             files = {
-                'audio': ('audio.amr', audio_file, 'audio/amr')
+                'audio': ('audio.amr', audio_file, audio_response.headers.get('Content-Type', 'audio/amr'))
             }
-            logger.info("Attempting converter service request")
+            logger.info(f"Sending file with content type: {files['audio'][2]}")
+            
             converter_response = requests.post(
-                converter_url,
+                audio_converter_url,
                 files=files
             )
         
@@ -92,7 +94,7 @@ def process_audio_message(media_url):
         logger.info("Successfully saved converted audio")
             
         # Transcribe the audio
-        logger.info("Starting transcribe")
+        logger.info("Starting transcription")
         with open("/tmp/audio.mp3", "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
