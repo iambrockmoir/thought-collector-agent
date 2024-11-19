@@ -282,23 +282,29 @@ def handle_sms():
             
             if audio_response.status_code != 200:
                 logger.error(f"Failed to download audio: {audio_response.status_code}")
-                return '', 200  # Silent fail
+                return '', 200
+            
+            # Log content type for debugging
+            content_type = audio_response.headers.get('Content-Type')
+            logger.info(f"Audio content type: {content_type}")
+            
+            # Convert using your service
+            converter_url = os.getenv('AUDIO_CONVERTER_URL')
+            files = {'audio': ('audio.amr', audio_response.content, content_type)}
+            
+            logger.info("Converting audio...")
+            converter_response = requests.post(converter_url, files=files)
+            
+            if converter_response.status_code != 200:
+                logger.error(f"Conversion failed: {converter_response.status_code}")
+                return '', 200
                 
-            # Save temporarily and transcribe in same context
-            temp_path = "/tmp/audio.mp3"
-            try:
-                with open(temp_path, "wb") as f:
-                    f.write(audio_response.content)
-                
-                with open(temp_path, "rb") as f:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=f
-                    )
-            finally:
-                # Clean up temp file
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
+            # Transcribe the converted audio
+            logger.info("Transcribing converted audio...")
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=('audio.mp3', converter_response.content, 'audio/mp3')
+            )
             
             transcribed_text = transcript.text
             logger.info(f"Transcribed: {transcribed_text}")
@@ -310,7 +316,7 @@ def handle_sms():
                 'transcription': transcribed_text,
                 'metadata': {
                     'source': 'twilio',
-                    'content_type': audio_response.headers.get('Content-Type')
+                    'content_type': content_type
                 }
             }
             
