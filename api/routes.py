@@ -12,7 +12,7 @@ import time
 from requests.exceptions import Timeout, RequestException
 import threading
 from supabase import create_client
-import pinecone
+from pinecone import Pinecone
 from datetime import datetime
 
 # Configure logging
@@ -51,10 +51,8 @@ supabase = create_client(
     os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Pinecone
-pinecone.init(
-    api_key=os.getenv('PINECONE_API_KEY')
-)
+# Initialize Pinecone client
+pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
 
 # Get the index
 index_name = "thoughts-index-qt78i74"  # Use the exact index name from your dashboard
@@ -62,7 +60,8 @@ index_name = "thoughts-index-qt78i74"  # Use the exact index name from your dash
 # Add debug logging
 logger.info(f"Initializing Pinecone index: {index_name}")
 try:
-    index = pinecone.Index(index_name)
+    # Get index using new API
+    index = pc.Index(index_name)
     logger.info("Successfully initialized Pinecone index")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
@@ -360,7 +359,7 @@ def handle_sms():
                     }
                 }
                 
-                # Upsert with new format
+                # Upsert with new API
                 index.upsert(vectors=[vector_record])
                 logger.info(f"Successfully indexed thought {thought_id} in Pinecone")
             except Exception as e:
