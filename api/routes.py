@@ -52,12 +52,16 @@ supabase = create_client(
 )
 pinecone.init(
     api_key=os.getenv('PINECONE_API_KEY'),
-    environment=os.getenv('PINECONE_ENVIRONMENT')
+    environment="us-east-1-aws"
 )
 index_name = os.getenv('PINECONE_INDEX')
 if not index_name:
     raise ValueError("PINECONE_INDEX environment variable not set")
-index = pinecone.Index(index_name)
+host = "https://thoughts-index-qt78i74.svc.aped-4627-b74a.pinecone.io"
+index = pinecone.Index(
+    index_name,
+    host=host
+)
 
 def process_audio_message(media_url):
     """Process an audio message"""
