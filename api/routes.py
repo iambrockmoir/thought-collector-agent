@@ -58,47 +58,41 @@ def process_audio_message(media_url):
             
         # Save the audio file temporarily
         logger.info("Saving audio file")
-        with open("/tmp/original_audio.mp3", "wb") as f:
+        with open("/tmp/original_audio.amr", "wb") as f:
             f.write(audio_response.content)
             
         logger.info("Successfully saved audio file")
         
-        # Send the URL directly to the converter service
-        logger.info(f"Sending to converter service: {audio_converter_url}")
-        converter_payload = {"url": media_url}
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {twilio_account_sid}:{twilio_auth_token}"
-        }
+        # Send to converter service
+        converter_url = f"{audio_converter_url}/convert"
+        logger.info(f"Sending to converter service: {converter_url}")
         
-        logger.info("Attempting converter service request")
-        converter_response = requests.post(
-            audio_converter_url,
-            json=converter_payload,
-            headers=headers
-        )
+        with open("/tmp/original_audio.amr", "rb") as audio_file:
+            files = {
+                'audio': ('audio.amr', audio_file, 'audio/amr')
+            }
+            logger.info("Attempting converter service request")
+            converter_response = requests.post(
+                converter_url,
+                files=files
+            )
         
         logger.info(f"Converter response status: {converter_response.status_code}")
-        logger.info(f"Converter response: {converter_response.text}")
         
         if converter_response.status_code != 200:
-            logger.error(f"Converter error: {converter_response.text}")
+            logger.error(f"Converter error status: {converter_response.status_code}")
+            logger.error(f"Converter error content: {converter_response.text}")
             return "Sorry, I had trouble processing your audio message."
             
-        converted_data = converter_response.json()
-        converted_url = converted_data.get("url")
-        if not converted_url:
-            logger.error("No converted URL received")
-            return "Sorry, I couldn't convert your audio message."
-            
-        logger.info(f"Audio converted successfully: {converted_url}")
-        
-        # Download the converted audio
-        converted_audio = requests.get(converted_url)
+        # Save the converted audio
+        logger.info("Saving converted audio")
         with open("/tmp/audio.mp3", "wb") as f:
-            f.write(converted_audio.content)
+            f.write(converter_response.content)
+            
+        logger.info("Successfully saved converted audio")
             
         # Transcribe the audio
+        logger.info("Starting transcribe")
         with open("/tmp/audio.mp3", "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
@@ -205,7 +199,9 @@ def handle_sms():
         return response_text, 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
-        logger.error("=== Error
+        logger.error("=== Error in SMS Handler ===")
+        logger.error(f"SMS processing failed: {str(e)}", exc_info=True)
+        return f"Sorry, I had trouble processing your SMS message. Error: {str(e)}"
 
 @app.route('/debug')
 def debug_info():
