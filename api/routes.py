@@ -8,6 +8,8 @@ from openai import OpenAI
 import requests
 from urllib.parse import urlparse
 import json
+import time
+from requests.exceptions import Timeout, RequestException
 
 # Configure logging
 logging.basicConfig(
@@ -42,13 +44,22 @@ except Exception as e:
 def process_audio_message(media_url):
     """Process an audio message"""
     try:
+        start_time = time.time()
         logger.info("=== Starting Audio Processing ===")
         logger.info(f"Processing audio from URL: {media_url}")
         
         # Download the audio file from Twilio with authentication
         auth = (twilio_account_sid, twilio_auth_token)
         logger.info("Attempting to download from Twilio")
-        audio_response = requests.get(media_url, auth=auth)
+        try:
+            audio_response = requests.get(media_url, auth=auth, timeout=10)  # 10 second timeout
+            logger.info(f"Twilio download took {time.time() - start_time:.2f} seconds")
+        except Timeout:
+            logger.error("Timeout downloading from Twilio")
+            return "Sorry, the download took too long. Please try again."
+        except RequestException as e:
+            logger.error(f"Error downloading from Twilio: {str(e)}")
+            return "Sorry, there was a problem downloading your audio."
         
         logger.info(f"Twilio download status: {audio_response.status_code}")
         logger.info(f"Twilio content type: {audio_response.headers.get('Content-Type')}")
@@ -64,6 +75,8 @@ def process_audio_message(media_url):
             f.write(audio_response.content)
             
         logger.info("Successfully saved audio file")
+        file_size = len(audio_response.content)
+        logger.info(f"Audio file size: {file_size} bytes")
         
         # Send to converter service
         logger.info(f"Sending to converter service: {audio_converter_url}")
@@ -74,10 +87,20 @@ def process_audio_message(media_url):
             }
             logger.info(f"Sending file with content type: {files['audio'][2]}")
             
-            converter_response = requests.post(
-                audio_converter_url,
-                files=files
-            )
+            try:
+                converter_start = time.time()
+                converter_response = requests.post(
+                    audio_converter_url,
+                    files=files,
+                    timeout=30  # 30 second timeout
+                )
+                logger.info(f"Converter request took {time.time() - converter_start:.2f} seconds")
+            except Timeout:
+                logger.error("Timeout from converter service")
+                return "Sorry, the conversion took too long. Please try again."
+            except RequestException as e:
+                logger.error(f"Error from converter service: {str(e)}")
+                return "Sorry, there was a problem converting your audio."
         
         logger.info(f"Converter response status: {converter_response.status_code}")
         
@@ -92,17 +115,24 @@ def process_audio_message(media_url):
             f.write(converter_response.content)
             
         logger.info("Successfully saved converted audio")
+        converted_size = len(converter_response.content)
+        logger.info(f"Converted file size: {converted_size} bytes")
             
         # Transcribe the audio
         logger.info("Starting transcription")
+        transcribe_start = time.time()
         with open("/tmp/audio.mp3", "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f
             )
+        logger.info(f"Transcription took {time.time() - transcribe_start:.2f} seconds")
         
         transcribed_text = transcript.text
         logger.info(f"Transcribed text: {transcribed_text}")
+        
+        total_time = time.time() - start_time
+        logger.info(f"Total processing time: {total_time:.2f} seconds")
         
         # Process the transcribed text
         return process_chat_message(transcribed_text)
