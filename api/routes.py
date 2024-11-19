@@ -54,7 +54,10 @@ pinecone.init(
     api_key=os.getenv('PINECONE_API_KEY'),
     environment=os.getenv('PINECONE_ENVIRONMENT')
 )
-index = pinecone.Index(os.getenv('PINECONE_INDEX'))
+index_name = os.getenv('PINECONE_INDEX')
+if not index_name:
+    raise ValueError("PINECONE_INDEX environment variable not set")
+index = pinecone.Index(index_name)
 
 def process_audio_message(media_url):
     """Process an audio message"""
@@ -290,6 +293,10 @@ def handle_sms():
             
             # Convert using your service
             converter_url = os.getenv('AUDIO_CONVERTER_URL')
+            if not converter_url:
+                logger.error("AUDIO_CONVERTER_URL not set")
+                return '', 200
+                
             files = {'audio': ('audio.amr', audio_response.content, content_type)}
             
             logger.info("Converting audio...")
@@ -331,16 +338,19 @@ def handle_sms():
             )
             vector = embedding_response.data[0].embedding
             
-            # Store in Pinecone
+            # Store in Pinecone with string ID
             metadata = {
-                'thought_id': thought_id,
+                'thought_id': str(thought_id),  # Convert to string
                 'phone_number': from_number,
                 'timestamp': datetime.utcnow().isoformat()
             }
             
-            index.upsert([
-                (f"thought_{thought_id}", vector, metadata)
-            ])
+            vector_id = f"thought_{thought_id}"
+            logger.info(f"Upserting to Pinecone with ID: {vector_id}")
+            
+            index.upsert(
+                vectors=[(vector_id, vector, metadata)]
+            )
             
             logger.info(f"Indexed thought {thought_id} in Pinecone")
             
