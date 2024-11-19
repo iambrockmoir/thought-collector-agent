@@ -52,9 +52,9 @@ supabase = create_client(
 )
 pinecone.init(
     api_key=os.getenv('PINECONE_API_KEY'),
-    environment="us-east-1-aws"
+    environment="gcp-starter"
 )
-index_name = os.getenv('PINECONE_INDEX')
+index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
 if not index_name:
     raise ValueError("PINECONE_INDEX environment variable not set")
 index = pinecone.Index(index_name)
@@ -338,21 +338,20 @@ def handle_sms():
             )
             vector = embedding_response.data[0].embedding
             
-            # Store in Pinecone
-            metadata = {
-                'thought_id': str(thought_id),
-                'phone_number': from_number,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            vector_id = f"thought_{thought_id}"
-            logger.info(f"Upserting to Pinecone with ID: {vector_id}")
-            
-            index.upsert(
-                vectors=[(vector_id, vector, metadata)]
-            )
-            
-            logger.info(f"Indexed thought {thought_id} in Pinecone")
+            # Store in Pinecone with more debug logging
+            try:
+                vector_id = f"thought_{thought_id}"
+                logger.info(f"Attempting Pinecone upsert with ID: {vector_id}")
+                logger.info(f"Vector length: {len(vector)}")
+                logger.info(f"Metadata: {metadata}")
+                
+                index.upsert(
+                    vectors=[(vector_id, vector, metadata)]
+                )
+                logger.info(f"Successfully indexed thought {thought_id} in Pinecone")
+            except Exception as e:
+                logger.error(f"Pinecone upsert failed: {str(e)}")
+                # Continue with the response even if Pinecone fails
             
             # Send minimal confirmation
             resp = MessagingResponse()
