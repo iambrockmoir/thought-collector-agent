@@ -12,7 +12,7 @@ import time
 from requests.exceptions import Timeout, RequestException
 import threading
 from supabase import create_client
-from pinecone import Pinecone
+import pinecone
 from datetime import datetime
 
 # Configure logging
