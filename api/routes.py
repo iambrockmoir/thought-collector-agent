@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, redirect
 from twilio.twiml.messaging_response import MessagingResponse
+from twilio.rest import Client
 import logging
 import sys
 import os
@@ -19,28 +20,37 @@ logger = logging.getLogger(__name__)
 # Initialize Flask
 app = Flask(__name__)
 
-# Check OpenAI configuration
+# Initialize clients
 openai_key = os.getenv('OPENAI_API_KEY')
-logger.info(f"OpenAI API Key available: {bool(openai_key)}")
+twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 audio_converter_url = os.getenv('AUDIO_CONVERTER_URL')
+
+logger.info(f"OpenAI API Key available: {bool(openai_key)}")
+logger.info(f"Twilio credentials available: {bool(twilio_account_sid and twilio_auth_token)}")
 logger.info(f"Audio Converter URL available: {bool(audio_converter_url)}")
 
 try:
     client = OpenAI(api_key=openai_key)
-    logger.info("OpenAI client initialized successfully")
+    twilio_client = Client(twilio_account_sid, twilio_auth_token)
+    logger.info("OpenAI and Twilio clients initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
+    logger.error(f"Failed to initialize clients: {str(e)}", exc_info=True)
     client = None
+    twilio_client = None
 
 def process_audio_message(media_url):
     """Process an audio message"""
     try:
         logger.info(f"Processing audio from URL: {media_url}")
         
-        # Download the audio file from Twilio
-        audio_response = requests.get(media_url)
+        # Download the audio file from Twilio with authentication
+        auth = (twilio_account_sid, twilio_auth_token)
+        audio_response = requests.get(media_url, auth=auth)
+        
         if audio_response.status_code != 200:
             logger.error(f"Failed to download audio from Twilio: {audio_response.status_code}")
+            logger.error(f"Response content: {audio_response.text}")
             return "Sorry, I had trouble downloading your audio message."
             
         # Save the audio file temporarily
