@@ -54,8 +54,8 @@ supabase = create_client(
 # Initialize Pinecone client
 pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
 
-# Get the index
-index_name = "thoughts-index"  # Use the exact index name from your dashboard
+# Get the index name from environment variable with fallback
+index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
 
 # Add debug logging
 logger.info(f"Initializing Pinecone index: {index_name}")
