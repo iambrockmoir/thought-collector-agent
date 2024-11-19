@@ -206,38 +206,80 @@ def store_thought(phone_number, audio_url, transcription=None):
         logger.error(f"Failed to store thought: {str(e)}", exc_info=True)
         return None
 
-def process_chat_message(message, from_number=None):
-    """Process a chat message using OpenAI"""
+def process_chat_message(message, from_number):
+    """Process a text message using ChatGPT and store in chat history"""
     try:
-        if not client:
-            logger.error("OpenAI client not initialized")
-            return "Sorry, I'm having trouble connecting to my brain right now."
-            
-        logger.info(f"Processing chat message: {message}")
+        logger.info(f"Processing chat message: {message[:50]}...")  # Log first 50 chars
         
-        # Store user's message
-        if from_number:
-            store_chat_message(from_number, message, is_user=True)
+        # Get chat history
+        chat_history = get_chat_history(from_number)
         
+        # Create messages for ChatGPT
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant who helps people organize and reflect on their thoughts."}
+        ]
+        
+        # Add chat history
+        for chat in chat_history:
+            messages.append({"role": "user" if chat['is_user'] else "assistant", "content": chat['content']})
+        
+        # Add current message
+        messages.append({"role": "user", "content": message})
+        
+        # Get response from ChatGPT
+        logger.info("Sending to ChatGPT...")
         response = client.chat.completions.create(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant who responds in a friendly, conversational way."},
-                {"role": "user", "content": message}
-            ],
-            max_tokens=150
+            messages=messages,
+            max_tokens=500
         )
-        reply = response.choices[0].message.content
-        logger.info(f"Generated reply: {reply}")
         
-        # Store assistant's response
-        if from_number:
-            store_chat_message(from_number, reply, is_user=False)
-            
-        return reply
+        ai_response = response.choices[0].message.content
+        logger.info(f"ChatGPT response: {ai_response[:50]}...")  # Log first 50 chars
+        
+        # Store messages in chat history
+        store_chat_message(from_number, message, True)  # User message
+        store_chat_message(from_number, ai_response, False)  # AI response
+        
+        return ai_response
+        
     except Exception as e:
-        logger.error(f"Chat processing failed: {str(e)}", exc_info=True)
-        return f"I'm having trouble processing your message right now. Error: {str(e)}"
+        logger.error(f"Failed to process chat message: {str(e)}", exc_info=True)
+        return "Sorry, I had trouble processing your message. Please try again."
+
+def get_chat_history(phone_number, limit=5):
+    """Get recent chat history for a user"""
+    try:
+        response = supabase.table('chat_history')\
+            .select('*')\
+            .eq('user_phone', phone_number)\
+            .order('created_at', desc=True)\
+            .limit(limit)\
+            .execute()
+            
+        # Reverse to get chronological order
+        return list(reversed(response.data))
+    except Exception as e:
+        logger.error(f"Failed to get chat history: {str(e)}")
+        return []
+
+def store_chat_message(phone_number, content, is_user):
+    """Store a chat message in the database"""
+    try:
+        data = {
+            'user_phone': phone_number,
+            'content': content,
+            'is_user': is_user,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        response = supabase.table('chat_history').insert(data).execute()
+        logger.info(f"Stored chat message for {phone_number}")
+        return response.data[0]['id'] if response.data else None
+        
+    except Exception as e:
+        logger.error(f"Failed to store chat message: {str(e)}")
+        return None
 
 @app.route('/')
 def health_check():
@@ -272,111 +314,49 @@ def store_processing_status(phone_number, media_url, status='pending'):
         return None
 
 @app.route('/webhook', methods=['POST'])
-def legacy_webhook():
-    """Handle legacy webhook endpoint"""
-    return handle_sms()
-
-@app.route('/api/sms', methods=['POST'])
-def handle_sms():
-    """Handle incoming SMS messages"""
+def webhook():
+    """Handle incoming messages"""
     try:
-        form_data = request.form.to_dict()
-        from_number = form_data.get('From', '')
-        media_url = form_data.get('MediaUrl0', '')
+        # Get message details
+        from_number = request.values.get('From', '')
+        content_type = request.values.get('MediaContentType0', '')
+        media_url = request.values.get('MediaUrl0', '')
+        body = request.values.get('Body', '').strip()
         
-        if media_url:
-            logger.info(f"Received audio from {from_number}: {media_url}")
-            
-            # Download from Twilio
-            auth = (twilio_account_sid, twilio_auth_token)
-            audio_response = requests.get(media_url, auth=auth)
-            
-            if audio_response.status_code != 200:
-                logger.error(f"Failed to download audio: {audio_response.status_code}")
-                return '', 200
-            
-            # Log content type for debugging
-            content_type = audio_response.headers.get('Content-Type')
-            logger.info(f"Audio content type: {content_type}")
-            
-            # Convert using your service
-            converter_url = os.getenv('AUDIO_CONVERTER_URL')
-            if not converter_url:
-                logger.error("AUDIO_CONVERTER_URL not set")
-                return '', 200
-                
-            files = {'audio': ('audio.amr', audio_response.content, content_type)}
-            
-            logger.info("Converting audio...")
-            converter_response = requests.post(converter_url, files=files)
-            
-            if converter_response.status_code != 200:
-                logger.error(f"Conversion failed: {converter_response.status_code}")
-                return '', 200
-                
-            # Transcribe the converted audio
-            logger.info("Transcribing converted audio...")
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=('audio.mp3', converter_response.content, 'audio/mp3')
+        logger.info(f"Received message from {from_number}")
+        logger.info(f"Content type: {content_type}")
+        logger.info(f"Message body: {body}")
+
+        # Handle audio messages
+        if content_type and media_url:
+            logger.info("Processing audio message")
+            # Start async processing
+            thread = threading.Thread(
+                target=process_audio_message_async,
+                args=(media_url, from_number)
             )
+            thread.start()
             
-            transcribed_text = transcript.text
-            logger.info(f"Transcribed: {transcribed_text}")
-            
-            # Store in Supabase
-            thought_data = {
-                'user_phone': from_number,
-                'audio_url': media_url,
-                'transcription': transcribed_text,
-                'metadata': {
-                    'source': 'twilio',
-                    'content_type': content_type
-                }
-            }
-            
-            result = supabase.table('thoughts').insert(thought_data).execute()
-            thought_id = result.data[0]['id']
-            logger.info(f"Stored thought with ID: {thought_id}")
-            
-            # Create and store embedding
-            embedding_response = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=transcribed_text
-            )
-            vector = embedding_response.data[0].embedding
-            
-            # Store in Pinecone with more debug logging
-            try:
-                # Create vector record
-                vector_record = {
-                    "id": f"thought_{thought_id}",
-                    "values": vector,
-                    "metadata": {
-                        'thought_id': str(thought_id),
-                        'phone_number': from_number,
-                        'timestamp': datetime.utcnow().isoformat()
-                    }
-                }
-                
-                # Upsert with new API
-                index.upsert(vectors=[vector_record])
-                logger.info(f"Successfully indexed thought {thought_id} in Pinecone")
-            except Exception as e:
-                logger.error(f"Pinecone upsert failed: {str(e)}")
-                # Continue with the response even if Pinecone fails
-            
-            # Send minimal confirmation
+            # Send immediate acknowledgment
             resp = MessagingResponse()
-            resp.message("✓ Thought saved")
+            resp.message("Processing your audio message...")
             return str(resp), 200, {'Content-Type': 'text/xml'}
             
+        # Handle text messages
+        elif body:
+            logger.info("Processing text message")
+            response = process_chat_message(body, from_number)
+            
+            resp = MessagingResponse()
+            resp.message(response)
+            return str(resp), 200, {'Content-Type': 'text/xml'}
+        
         else:
-            # Ignore text messages
+            logger.warning("Received message with no content")
             return '', 200
             
     except Exception as e:
-        logger.error(f"Failed to process thought: {str(e)}", exc_info=True)
+        logger.error(f"Failed to process message: {str(e)}", exc_info=True)
         return '', 200  # Silent fail
 
 @app.route('/debug')
