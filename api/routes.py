@@ -373,8 +373,7 @@ def webhook():
                 thought_id = store_thought(
                     phone_number=from_number,
                     audio_url=media_url,
-                    transcription=transcribed_text,
-                    metadata={'source': 'twilio'}
+                    transcription=transcribed_text
                 )
                 
                 # Send success response
@@ -475,8 +474,7 @@ def process_audio_message_async(media_url, from_number):
         thought_id = store_thought(
             phone_number=from_number,
             audio_url=media_url,
-            transcription=transcribed_text,
-            metadata={'source': 'twilio'}
+            transcription=transcribed_text
         )
         
         # Send confirmation
