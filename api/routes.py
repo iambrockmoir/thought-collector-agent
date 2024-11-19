@@ -157,33 +157,47 @@ def legacy_webhook():
 def handle_sms():
     """Handle incoming SMS messages"""
     try:
+        logger.info("=== Starting SMS Handler ===")
         form_data = request.form.to_dict()
         logger.info(f"Received SMS webhook with data: {form_data}")
         
         message_body = form_data.get('Body', '')
         from_number = form_data.get('From', '')
+        
+        # Log all media-related fields
+        for key in form_data.keys():
+            if 'Media' in key:
+                logger.info(f"Media field found: {key}: {form_data[key]}")
+        
         media_url = form_data.get('MediaUrl0', '')
+        media_type = form_data.get('MediaContentType0', '')
         
-        logger.info(f"Processing message from {from_number}")
+        logger.info(f"From: {from_number}")
+        logger.info(f"Body: {message_body}")
+        logger.info(f"Media URL: {media_url}")
+        logger.info(f"Media Type: {media_type}")
+        
         if media_url:
-            logger.info(f"Media URL received: {media_url}")
+            logger.info("Processing as media message")
             reply = process_audio_message(media_url)
+            logger.info(f"Media processing reply: {reply}")
         else:
-            logger.info(f"Processing text message: {message_body}")
+            logger.info("Processing as text message")
             reply = process_chat_message(message_body)
+            logger.info(f"Text processing reply: {reply}")
         
+        logger.info("Creating TwiML response")
         resp = MessagingResponse()
         resp.message(reply)
         
         response_text = str(resp)
         logger.info(f"Sending response: {response_text}")
+        logger.info("=== Finishing SMS Handler ===")
+        
         return response_text, 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
-        logger.error(f"SMS handling failed: {str(e)}", exc_info=True)
-        resp = MessagingResponse()
-        resp.message(f"Sorry, something went wrong. Error: {str(e)}")
-        return str(resp), 200, {'Content-Type': 'text/xml'}
+        logger.error("=== Error
 
 @app.route('/debug')
 def debug_info():
