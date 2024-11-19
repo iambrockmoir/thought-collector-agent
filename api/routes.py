@@ -52,7 +52,7 @@ supabase = create_client(
 )
 pinecone.init(
     api_key=os.getenv('PINECONE_API_KEY'),
-    environment="gcp-starter"
+    environment="us-east-1"
 )
 index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
 if not index_name:
