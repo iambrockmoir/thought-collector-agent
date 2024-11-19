@@ -12,7 +12,7 @@ import time
 from requests.exceptions import Timeout, RequestException
 import threading
 from supabase import create_client
-import pinecone
+from pinecone import Pinecone
 from datetime import datetime
 
 # Configure logging
@@ -51,21 +51,15 @@ supabase = create_client(
     os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Pinecone for serverless
-pinecone.init(
-    api_key=os.getenv('PINECONE_API_KEY'),
-    cloud="aws",  # Specify cloud provider
-    region="us-east-1"  # Specify region
-)
-
-# Get the index
+# Initialize Pinecone client
+pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
 index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
 
 # Add debug logging
 logger.info(f"Initializing Pinecone index: {index_name}")
 try:
-    # Simple initialization
-    index = pinecone.Index(index_name)
+    # Get the index
+    index = pc.Index(index_name)
     logger.info("Successfully initialized Pinecone index")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
@@ -352,21 +346,19 @@ def handle_sms():
             
             # Store in Pinecone with more debug logging
             try:
-                # Create metadata first
-                metadata = {
-                    'thought_id': str(thought_id),
-                    'phone_number': from_number,
-                    'timestamp': datetime.utcnow().isoformat()
+                # Create vector record
+                vector_record = {
+                    "id": f"thought_{thought_id}",
+                    "values": vector,
+                    "metadata": {
+                        'thought_id': str(thought_id),
+                        'phone_number': from_number,
+                        'timestamp': datetime.utcnow().isoformat()
+                    }
                 }
                 
-                vector_id = f"thought_{thought_id}"
-                logger.info(f"Attempting Pinecone upsert with ID: {vector_id}")
-                logger.info(f"Vector length: {len(vector)}")
-                logger.info(f"Metadata: {metadata}")
-                
-                index.upsert(
-                    vectors=[(vector_id, vector, metadata)]
-                )
+                # Upsert with new format
+                index.upsert(vectors=[vector_record])
                 logger.info(f"Successfully indexed thought {thought_id} in Pinecone")
             except Exception as e:
                 logger.error(f"Pinecone upsert failed: {str(e)}")
