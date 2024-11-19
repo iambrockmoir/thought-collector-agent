@@ -168,23 +168,22 @@ def process_audio_message(media_url):
         logger.error(f"Audio processing failed: {str(e)}", exc_info=True)
         return f"Sorry, I had trouble processing your audio message. Error: {str(e)}"
 
-def store_chat_message(phone_number, message, is_user=True, related_thoughts=None):
-    """Store a message in chat_history"""
+def store_chat_message(phone_number, content, is_user):
+    """Store a chat message in the database"""
     try:
-        chat_data = {
+        data = {
             'user_phone': phone_number,
-            'message': message,
+            'message': content,
             'is_user': is_user,
-            'related_thoughts': related_thoughts
+            'created_at': datetime.utcnow().isoformat()
         }
         
-        result = supabase.table('chat_history').insert(chat_data).execute()
-        chat_id = result.data[0]['id']
-        logger.info(f"Stored chat message with ID: {chat_id}")
-        return chat_id
+        response = supabase.table('chat_history').insert(data).execute()
+        logger.info(f"Stored chat message for {phone_number}")
+        return response.data[0]['id'] if response.data else None
         
     except Exception as e:
-        logger.error(f"Failed to store chat message: {str(e)}", exc_info=True)
+        logger.error(f"Failed to store chat message: {str(e)}")
         return None
 
 def store_thought(phone_number, audio_url, transcription=None):
@@ -253,24 +252,6 @@ def get_chat_history(phone_number, limit=5):
     except Exception as e:
         logger.error(f"Failed to get chat history: {str(e)}")
         return []
-
-def store_chat_message(phone_number, content, is_user):
-    """Store a chat message in the database"""
-    try:
-        data = {
-            'user_phone': phone_number,
-            'content': content,
-            'is_user': is_user,
-            'created_at': datetime.utcnow().isoformat()
-        }
-        
-        response = supabase.table('chat_history').insert(data).execute()
-        logger.info(f"Stored chat message for {phone_number}")
-        return response.data[0]['id'] if response.data else None
-        
-    except Exception as e:
-        logger.error(f"Failed to store chat message: {str(e)}")
-        return None
 
 @app.route('/')
 def health_check():
