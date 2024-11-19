@@ -207,24 +207,15 @@ def store_thought(phone_number, audio_url, transcription=None):
         return None
 
 def process_chat_message(message, from_number):
-    """Process a text message using ChatGPT and store in chat history"""
+    """Process a text message using ChatGPT"""
     try:
         logger.info(f"Processing chat message: {message[:50]}...")  # Log first 50 chars
         
-        # Get chat history
-        chat_history = get_chat_history(from_number)
-        
-        # Create messages for ChatGPT
+        # Simple message array without history
         messages = [
-            {"role": "system", "content": "You are a helpful assistant who helps people organize and reflect on their thoughts."}
+            {"role": "system", "content": "You are a helpful assistant who helps people organize and reflect on their thoughts."},
+            {"role": "user", "content": message}
         ]
-        
-        # Add chat history
-        for chat in chat_history:
-            messages.append({"role": "user" if chat['is_user'] else "assistant", "content": chat['content']})
-        
-        # Add current message
-        messages.append({"role": "user", "content": message})
         
         # Get response from ChatGPT
         logger.info("Sending to ChatGPT...")
@@ -377,28 +368,45 @@ def debug_info():
         return jsonify({"error": str(e)}), 500
 
 def process_audio_message_async(media_url, from_number):
-    """Process audio message in the background and send response when done"""
+    """Process audio message in the background"""
     try:
         logger.info(f"=== Starting Async Audio Processing for {from_number} ===")
-        logger.info(f"Media URL: {media_url}")
         
         # Download from Twilio
         auth = (twilio_account_sid, twilio_auth_token)
         logger.info("Downloading from Twilio...")
-        audio_response = requests.get(media_url, auth=auth, timeout=10)
+        audio_response = requests.get(media_url, auth=auth, timeout=30)  # Increased timeout
         
         if audio_response.status_code != 200:
             logger.error(f"Twilio download failed: {audio_response.status_code}")
             send_twilio_message(from_number, "Sorry, I couldn't download your audio.")
             return
             
-        logger.info("Successfully downloaded from Twilio")
-        
-        # Process audio through converter service...
-        # (existing audio conversion code)
+        # Save the audio file
+        with open("/tmp/original_audio.amr", "wb") as f:
+            f.write(audio_response.content)
+            
+        # Convert audio (using your existing converter service)
+        with open("/tmp/original_audio.amr", "rb") as audio_file:
+            files = {
+                'audio': ('audio.amr', audio_file, 'audio/amr')
+            }
+            converter_response = requests.post(
+                audio_converter_url,
+                files=files,
+                timeout=30
+            )
+            
+        if converter_response.status_code != 200:
+            logger.error(f"Converter failed: {converter_response.status_code}")
+            send_twilio_message(from_number, "Sorry, I had trouble converting your audio.")
+            return
+            
+        # Save converted audio
+        with open("/tmp/audio.mp3", "wb") as f:
+            f.write(converter_response.content)
         
         # Transcribe
-        logger.info("Starting transcription...")
         with open("/tmp/audio.mp3", "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
@@ -413,37 +421,11 @@ def process_audio_message_async(media_url, from_number):
             phone_number=from_number,
             audio_url=media_url,
             transcription=transcribed_text,
-            metadata={
-                'source': 'twilio',
-                'content_type': audio_response.headers.get('Content-Type')
-            }
+            metadata={'source': 'twilio'}
         )
         
-        # Process transcribed text
-        logger.info("Processing transcribed text with ChatGPT...")
-        response = process_chat_message(transcribed_text, from_number)
-        logger.info(f"ChatGPT response: {response}")
-        
-        # Update chat message with related thought
-        if thought_id:
-            # Get the last two chat messages (user's transcribed message and AI's response)
-            recent_chats = supabase.table('chat_history')\
-                .select('id')\
-                .eq('user_phone', from_number)\
-                .order('created_at', desc=True)\
-                .limit(2)\
-                .execute()
-                
-            for chat in recent_chats.data:
-                supabase.table('chat_history')\
-                    .update({'related_thoughts': [thought_id]})\
-                    .eq('id', chat['id'])\
-                    .execute()
-        
-        # Send final response
-        logger.info(f"Sending response to {from_number}")
-        send_twilio_message(from_number, f"I heard: '{transcribed_text}'\n\nMy response: {response}")
-        logger.info("Response sent successfully")
+        # Send confirmation
+        send_twilio_message(from_number, "Thought saved!")
         
     except Exception as e:
         logger.error(f"Async processing failed: {str(e)}", exc_info=True)
