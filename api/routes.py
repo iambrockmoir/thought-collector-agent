@@ -42,34 +42,40 @@ except Exception as e:
 def process_audio_message(media_url):
     """Process an audio message"""
     try:
+        logger.info("=== Starting Audio Processing ===")
         logger.info(f"Processing audio from URL: {media_url}")
         
         # Download the audio file from Twilio with authentication
         auth = (twilio_account_sid, twilio_auth_token)
+        logger.info("Attempting to download from Twilio")
         audio_response = requests.get(media_url, auth=auth)
         
+        logger.info(f"Twilio download status: {audio_response.status_code}")
         if audio_response.status_code != 200:
             logger.error(f"Failed to download audio from Twilio: {audio_response.status_code}")
             logger.error(f"Response content: {audio_response.text}")
             return "Sorry, I had trouble downloading your audio message."
             
         # Save the audio file temporarily
+        logger.info("Saving audio file")
         with open("/tmp/original_audio.mp3", "wb") as f:
             f.write(audio_response.content)
             
-        logger.info("Downloaded audio file from Twilio")
+        logger.info("Successfully saved audio file")
         
-        # Send the file to the converter service
-        files = {
-            'audio': ('audio.mp3', open('/tmp/original_audio.mp3', 'rb'), 'audio/mpeg')
+        # Send the URL directly to the converter service
+        logger.info(f"Sending to converter service: {audio_converter_url}")
+        converter_payload = {"url": media_url}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Basic {twilio_account_sid}:{twilio_auth_token}"
         }
         
-        logger.info(f"Sending to converter service: {audio_converter_url}")
-        logger.info(f"Files being sent: {files.keys()}")
-        
+        logger.info("Attempting converter service request")
         converter_response = requests.post(
             audio_converter_url,
-            files=files
+            json=converter_payload,
+            headers=headers
         )
         
         logger.info(f"Converter response status: {converter_response.status_code}")
@@ -79,7 +85,8 @@ def process_audio_message(media_url):
             logger.error(f"Converter error: {converter_response.text}")
             return "Sorry, I had trouble processing your audio message."
             
-        converted_url = converter_response.json().get("url")
+        converted_data = converter_response.json()
+        converted_url = converted_data.get("url")
         if not converted_url:
             logger.error("No converted URL received")
             return "Sorry, I couldn't convert your audio message."
@@ -105,6 +112,7 @@ def process_audio_message(media_url):
         return process_chat_message(transcribed_text)
         
     except Exception as e:
+        logger.error("=== Error in Audio Processing ===")
         logger.error(f"Audio processing failed: {str(e)}", exc_info=True)
         return f"Sorry, I had trouble processing your audio message. Error: {str(e)}"
 
