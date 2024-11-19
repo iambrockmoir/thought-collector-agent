@@ -61,10 +61,12 @@ def process_audio_message(media_url):
         
         # Send the file to the converter service
         files = {
-            'file': ('audio.mp3', open('/tmp/original_audio.mp3', 'rb'), 'audio/mpeg')
+            'audio': ('audio.mp3', open('/tmp/original_audio.mp3', 'rb'), 'audio/mpeg')
         }
         
         logger.info(f"Sending to converter service: {audio_converter_url}")
+        logger.info(f"Files being sent: {files.keys()}")
+        
         converter_response = requests.post(
             audio_converter_url,
             files=files
