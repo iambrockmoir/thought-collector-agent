@@ -51,15 +51,19 @@ supabase = create_client(
     os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Pinecone client
-pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
+# Initialize Pinecone with serverless config
+pinecone.init(
+    api_key=os.getenv('PINECONE_API_KEY'),
+    environment="us-east-1"  # AWS region for serverless
+)
+
+# Get the index
 index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
 
 # Add debug logging
 logger.info(f"Initializing Pinecone index: {index_name}")
 try:
-    # Get the index
-    index = pc.Index(index_name)
+    index = pinecone.Index(index_name)
     logger.info("Successfully initialized Pinecone index")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
