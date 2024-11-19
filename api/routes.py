@@ -176,39 +176,19 @@ def store_chat_message(phone_number, message, is_user=True, related_thoughts=Non
         logger.error(f"Failed to store chat message: {str(e)}", exc_info=True)
         return None
 
-def store_thought(phone_number, audio_url, transcription, metadata=None):
+def store_thought(phone_number, audio_url, transcription=None):
     """Store a thought from audio"""
     try:
         thought_data = {
             'user_phone': phone_number,
             'audio_url': audio_url,
-            'transcription': transcription,
-            'metadata': metadata
+            'transcription': transcription,  # This will be None initially
+            'metadata': {'status': 'received'}
         }
         
         result = supabase.table('thoughts').insert(thought_data).execute()
         thought_id = result.data[0]['id']
         logger.info(f"Stored thought with ID: {thought_id}")
-        
-        # Create embedding for the transcription
-        embedding_response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=transcription
-        )
-        transcription_vector = embedding_response.data[0].embedding
-        
-        # Store in Pinecone with metadata
-        metadata = {
-            'thought_id': thought_id,
-            'phone_number': phone_number,
-            'timestamp': datetime.utcnow().isoformat()
-        }
-        
-        index.upsert([
-            (f"thought_{thought_id}", transcription_vector, metadata)
-        ])
-        
-        logger.info(f"Stored vector in Pinecone for thought {thought_id}")
         return thought_id
         
     except Exception as e:
@@ -295,38 +275,15 @@ def handle_sms():
         media_url = form_data.get('MediaUrl0', '')
         
         if media_url:
-            # Store the initial status
-            queue_id = store_processing_status(from_number, media_url)
+            # Store the thought immediately
+            thought_id = store_thought(from_number, media_url)
             
-            # Store initial message in chat history
-            store_chat_message(
-                from_number,
-                "🎤 Audio message received, processing...",
-                is_user=False
-            )
-            
-            # Trigger the processing webhook with proper URL scheme
-            base_url = os.getenv('VERCEL_URL', 'thought-collector-agent.vercel.app')
-            process_url = f"https://{base_url}/api/process-audio"
-            
-            logger.info(f"Triggering processing webhook at: {process_url}")
-            
-            requests.post(
-                process_url,
-                json={
-                    'queue_id': queue_id,
-                    'media_url': media_url,
-                    'phone_number': from_number
-                },
-                headers={'Authorization': os.getenv('INTERNAL_API_KEY')}
-            )
-            
-            # Respond immediately
+            # Simple confirmation
             resp = MessagingResponse()
-            resp.message("I'm processing your audio message. I'll respond in a moment...")
+            resp.message("✓ Thought received")
             return str(resp), 200, {'Content-Type': 'text/xml'}
         else:
-            # Handle text messages synchronously
+            # Handle text messages as before
             reply = process_chat_message(message_body, from_number)
             resp = MessagingResponse()
             resp.message(reply)
