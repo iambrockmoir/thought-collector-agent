@@ -264,59 +264,79 @@ def health_check():
             "message": str(e)
         }), 500
 
+def store_processing_status(phone_number, media_url, status='pending'):
+    """Store the processing status in Supabase"""
+    try:
+        status_data = {
+            'user_phone': phone_number,
+            'media_url': media_url,
+            'status': status,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase.table('processing_queue').insert(status_data).execute()
+        return result.data[0]['id']
+    except Exception as e:
+        logger.error(f"Failed to store processing status: {str(e)}")
+        return None
+
 @app.route('/webhook', methods=['POST'])
 def legacy_webhook():
     """Handle legacy webhook endpoint"""
-    logger.info("Received request to legacy webhook")
     return handle_sms()
 
 @app.route('/api/sms', methods=['POST'])
 def handle_sms():
     """Handle incoming SMS messages"""
     try:
-        logger.info("=== Starting SMS Handler ===")
         form_data = request.form.to_dict()
-        logger.info(f"Received SMS webhook with data: {form_data}")
-        
         message_body = form_data.get('Body', '')
         from_number = form_data.get('From', '')
-        
-        # Log all media-related fields
-        for key in form_data.keys():
-            if 'Media' in key:
-                logger.info(f"Media field found: {key}: {form_data[key]}")
-        
         media_url = form_data.get('MediaUrl0', '')
-        media_type = form_data.get('MediaContentType0', '')
-        
-        logger.info(f"From: {from_number}")
-        logger.info(f"Body: {message_body}")
-        logger.info(f"Media URL: {media_url}")
-        logger.info(f"Media Type: {media_type}")
         
         if media_url:
-            logger.info("Processing as media message")
-            reply = process_audio_message(media_url)
-            logger.info(f"Media processing reply: {reply}")
+            # Store the initial status
+            queue_id = store_processing_status(from_number, media_url)
+            
+            # Store initial message in chat history
+            store_chat_message(
+                from_number,
+                "🎤 Audio message received, processing...",
+                is_user=False
+            )
+            
+            # Trigger the processing webhook with proper URL scheme
+            base_url = os.getenv('VERCEL_URL', 'thought-collector-agent.vercel.app')
+            process_url = f"https://{base_url}/api/process-audio"
+            
+            logger.info(f"Triggering processing webhook at: {process_url}")
+            
+            requests.post(
+                process_url,
+                json={
+                    'queue_id': queue_id,
+                    'media_url': media_url,
+                    'phone_number': from_number
+                },
+                headers={'Authorization': os.getenv('INTERNAL_API_KEY')}
+            )
+            
+            # Respond immediately
+            resp = MessagingResponse()
+            resp.message("I'm processing your audio message. I'll respond in a moment...")
+            return str(resp), 200, {'Content-Type': 'text/xml'}
         else:
-            logger.info("Processing as text message")
-            reply = process_chat_message(message_body)
-            logger.info(f"Text processing reply: {reply}")
-        
-        logger.info("Creating TwiML response")
-        resp = MessagingResponse()
-        resp.message(reply)
-        
-        response_text = str(resp)
-        logger.info(f"Sending response: {response_text}")
-        logger.info("=== Finishing SMS Handler ===")
-        
-        return response_text, 200, {'Content-Type': 'text/xml'}
-        
+            # Handle text messages synchronously
+            reply = process_chat_message(message_body, from_number)
+            resp = MessagingResponse()
+            resp.message(reply)
+            return str(resp), 200, {'Content-Type': 'text/xml'}
+            
     except Exception as e:
-        logger.error("=== Error in SMS Handler ===")
-        logger.error(f"SMS processing failed: {str(e)}", exc_info=True)
-        return f"Sorry, I had trouble processing your SMS message. Error: {str(e)}"
+        logger.error(f"SMS handling failed: {str(e)}", exc_info=True)
+        resp = MessagingResponse()
+        resp.message("Sorry, something went wrong. Please try again.")
+        return str(resp), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/debug')
 def debug_info():
