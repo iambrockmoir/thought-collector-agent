@@ -50,14 +50,28 @@ supabase = create_client(
     os.getenv('SUPABASE_URL'),
     os.getenv('SUPABASE_KEY')
 )
+
+# Initialize Pinecone with host from env
+pinecone_host = os.getenv('PINECONE_HOST')
+if not pinecone_host:
+    raise ValueError("PINECONE_HOST environment variable not set")
+
 pinecone.init(
     api_key=os.getenv('PINECONE_API_KEY'),
-    environment="us-east-1"
+    host=pinecone_host
 )
+
+# Get the index
 index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
-if not index_name:
-    raise ValueError("PINECONE_INDEX environment variable not set")
-index = pinecone.Index(index_name)
+
+# Add debug logging
+logger.info(f"Initializing Pinecone index: {index_name}")
+try:
+    index = pinecone.Index(index_name)
+    logger.info("Successfully initialized Pinecone index")
+except Exception as e:
+    logger.error(f"Failed to initialize Pinecone: {str(e)}")
+    raise
 
 def process_audio_message(media_url):
     """Process an audio message"""
