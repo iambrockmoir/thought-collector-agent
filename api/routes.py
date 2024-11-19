@@ -281,75 +281,75 @@ def handle_sms():
             audio_response = requests.get(media_url, auth=auth)
             
             if audio_response.status_code != 200:
-                logger.error(f"Twilio download failed: {audio_response.status_code}")
-                send_twilio_message(from_number, "Sorry, I couldn't download your audio.")
-                return
-            
-            logger.info("Successfully downloaded from Twilio")
-            
-            # Process audio through converter service...
-            # (existing audio conversion code)
-            
-            # Transcribe
-            logger.info("Starting transcription...")
-            with open("/tmp/audio.mp3", "rb") as f:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=f
-                )
+                logger.error(f"Failed to download audio: {audio_response.status_code}")
+                return '', 200  # Silent fail
+                
+            # Save temporarily and transcribe in same context
+            temp_path = "/tmp/audio.mp3"
+            try:
+                with open(temp_path, "wb") as f:
+                    f.write(audio_response.content)
+                
+                with open(temp_path, "rb") as f:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=f
+                    )
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
             
             transcribed_text = transcript.text
-            logger.info(f"Transcription result: {transcribed_text}")
+            logger.info(f"Transcribed: {transcribed_text}")
             
-            # Store thought
-            thought_id = store_thought(
-                phone_number=from_number,
-                audio_url=media_url,
-                transcription=transcribed_text,
-                metadata={
+            # Store in Supabase
+            thought_data = {
+                'user_phone': from_number,
+                'audio_url': media_url,
+                'transcription': transcribed_text,
+                'metadata': {
                     'source': 'twilio',
                     'content_type': audio_response.headers.get('Content-Type')
                 }
+            }
+            
+            result = supabase.table('thoughts').insert(thought_data).execute()
+            thought_id = result.data[0]['id']
+            logger.info(f"Stored thought with ID: {thought_id}")
+            
+            # Create and store embedding
+            embedding_response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=transcribed_text
             )
+            vector = embedding_response.data[0].embedding
             
-            # Process transcribed text
-            logger.info("Processing transcribed text with ChatGPT...")
-            response = process_chat_message(transcribed_text, from_number)
-            logger.info(f"ChatGPT response: {response}")
+            # Store in Pinecone
+            metadata = {
+                'thought_id': thought_id,
+                'phone_number': from_number,
+                'timestamp': datetime.utcnow().isoformat()
+            }
             
-            # Update chat message with related thought
-            if thought_id:
-                # Get the last two chat messages (user's transcribed message and AI's response)
-                recent_chats = supabase.table('chat_history')\
-                    .select('id')\
-                    .eq('user_phone', from_number)\
-                    .order('created_at', desc=True)\
-                    .limit(2)\
-                    .execute()
-                    
-                for chat in recent_chats.data:
-                    supabase.table('chat_history')\
-                        .update({'related_thoughts': [thought_id]})\
-                        .eq('id', chat['id'])\
-                        .execute()
+            index.upsert([
+                (f"thought_{thought_id}", vector, metadata)
+            ])
             
-            # Send final response
-            logger.info(f"Sending response to {from_number}")
-            send_twilio_message(from_number, f"I heard: '{transcribed_text}'\n\nMy response: {response}")
-            logger.info("Response sent successfully")
+            logger.info(f"Indexed thought {thought_id} in Pinecone")
             
-        else:
-            # Handle text messages as before
-            reply = process_chat_message(message_body, from_number)
+            # Send minimal confirmation
             resp = MessagingResponse()
-            resp.message(reply)
+            resp.message("✓ Thought saved")
             return str(resp), 200, {'Content-Type': 'text/xml'}
             
+        else:
+            # Ignore text messages
+            return '', 200
+            
     except Exception as e:
-        logger.error(f"SMS handling failed: {str(e)}", exc_info=True)
-        resp = MessagingResponse()
-        resp.message("Sorry, something went wrong. Please try again.")
-        return str(resp), 200, {'Content-Type': 'text/xml'}
+        logger.error(f"Failed to process thought: {str(e)}", exc_info=True)
+        return '', 200  # Silent fail
 
 @app.route('/debug')
 def debug_info():
