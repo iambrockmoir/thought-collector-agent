@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import json
 import time
 from requests.exceptions import Timeout, RequestException
+import threading
 
 # Configure logging
 logging.basicConfig(
@@ -251,6 +252,60 @@ def debug_info():
     except Exception as e:
         logger.error(f"Debug info failed: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+def process_audio_message_async(media_url, from_number):
+    """Process audio message in the background and send response when done"""
+    try:
+        logger.info("=== Starting Async Audio Processing ===")
+        
+        # Download from Twilio
+        auth = (twilio_account_sid, twilio_auth_token)
+        audio_response = requests.get(media_url, auth=auth, timeout=10)
+        
+        if audio_response.status_code != 200:
+            send_twilio_message(from_number, "Sorry, I couldn't download your audio.")
+            return
+            
+        # Convert audio
+        with open("/tmp/original_audio.amr", "wb") as f:
+            f.write(audio_response.content)
+            
+        with open("/tmp/original_audio.amr", "rb") as audio_file:
+            files = {
+                'audio': ('audio.amr', audio_file, audio_response.headers.get('Content-Type', 'audio/amr'))
+            }
+            
+            converter_response = requests.post(
+                audio_converter_url,
+                files=files,
+                timeout=30
+            )
+        
+        if converter_response.status_code != 200:
+            send_twilio_message(from_number, "Sorry, I couldn't convert your audio.")
+            return
+            
+        # Save converted audio
+        with open("/tmp/audio.mp3", "wb") as f:
+            f.write(converter_response.content)
+            
+        # Transcribe
+        with open("/tmp/audio.mp3", "rb") as f:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f
+            )
+        
+        # Process transcribed text
+        response = process_chat_message(transcript.text)
+        
+        # Send final response
+        send_twilio_message(from_number, response)
+        
+    except Exception as e:
+        logger.error("=== Error in Async Audio Processing ===")
+        logger.error(f"Async audio processing failed: {str(e)}", exc_info=True)
+        send_twilio_message(from_number, f"Sorry, I had trouble processing your audio message. Error: {str(e)}")
 
 # For local development
 if __name__ == '__main__':
