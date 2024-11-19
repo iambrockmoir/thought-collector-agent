@@ -57,11 +57,7 @@ pinecone.init(
 index_name = os.getenv('PINECONE_INDEX')
 if not index_name:
     raise ValueError("PINECONE_INDEX environment variable not set")
-host = "https://thoughts-index-qt78i74.svc.aped-4627-b74a.pinecone.io"
-index = pinecone.Index(
-    index_name,
-    host=host
-)
+index = pinecone.Index(index_name)
 
 def process_audio_message(media_url):
     """Process an audio message"""
@@ -342,9 +338,9 @@ def handle_sms():
             )
             vector = embedding_response.data[0].embedding
             
-            # Store in Pinecone with string ID
+            # Store in Pinecone
             metadata = {
-                'thought_id': str(thought_id),  # Convert to string
+                'thought_id': str(thought_id),
                 'phone_number': from_number,
                 'timestamp': datetime.utcnow().isoformat()
             }
