@@ -340,6 +340,13 @@ def handle_sms():
             
             # Store in Pinecone with more debug logging
             try:
+                # Create metadata first
+                metadata = {
+                    'thought_id': str(thought_id),
+                    'phone_number': from_number,
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+                
                 vector_id = f"thought_{thought_id}"
                 logger.info(f"Attempting Pinecone upsert with ID: {vector_id}")
                 logger.info(f"Vector length: {len(vector)}")
