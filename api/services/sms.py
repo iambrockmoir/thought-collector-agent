@@ -62,15 +62,14 @@ class SMSService:
                     response.message("Sorry, I couldn't process that audio. Please try again.")
                     return response
             
-            # Ensure we always return a response
-            response = MessagingResponse()
-            try:
-                chat_response = self.chat.process_message(body, from_number)
-                response.message(chat_response)
-            except Exception as e:
-                logger.error(f"Chat error: {str(e)}", exc_info=True)
-                response.message("Sorry, I encountered an error. Please try again.")
+            # Handle text message
+            logger.info(f"Processing text from {from_number}: {body[:50]}...")
+            chat_response = self.chat.process_message(body, from_number)
             
+            # Create TwiML response
+            response = MessagingResponse()
+            response.message(chat_response)
+            logger.info(f"Sending SMS response: {chat_response[:50]}...")
             return response
             
         except Exception as e:
@@ -83,18 +82,22 @@ class SMSService:
         """Handle text messages synchronously"""
         try:
             logger.info(f"Processing text from {from_number}: {body[:50]}...")
-            response = self.chat.process_message(body, from_number)
+            chat_response = self.chat.process_message(body, from_number)
             
             # Create TwiML response
-            twiml = MessagingResponse()
-            twiml.message(response)
-            return twiml
+            response = MessagingResponse()
+            response.message(chat_response)
+            
+            # Log the response we're sending
+            logger.info(f"Sending SMS response: {chat_response[:50]}...")
+            
+            return str(response)  # Convert TwiML to string
             
         except Exception as e:
             logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
-            twiml = MessagingResponse()
-            twiml.message("Sorry, I encountered an error. Please try again.")
-            return twiml
+            response = MessagingResponse()
+            response.message("Sorry, I encountered an error. Please try again.")
+            return str(response)  # Convert TwiML to string
 
     def _send_message(self, to: str, body: str):
         """Helper to send Twilio message"""
