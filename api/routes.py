@@ -138,3 +138,19 @@ def status():
     except Exception as e:
         logger.error(f"Status check failed: {str(e)}")
         return {'error': str(e)}, 500
+
+@app.route('/', methods=['GET'])
+def root():
+    """Basic health check"""
+    try:
+        stats = None
+        if index:
+            stats = index.describe_index_stats()
+        
+        return {
+            'status': 'healthy',
+            'pinecone_stats': stats
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {'status': 'error', 'message': str(e)}, 500
