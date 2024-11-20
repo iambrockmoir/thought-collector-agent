@@ -44,12 +44,14 @@ class SMSService:
         try:
             logger.info(f"Processing text from {from_number}: {body[:50]}...")
             response = self.chat.process_message(body, from_number)
-            return MessagingResponse().message(response)
+            twiml = MessagingResponse()
+            twiml.message(response)
+            return twiml
         except Exception as e:
             logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
-            return MessagingResponse().message(
-                "Sorry, I encountered an error. Please try again."
-            )
+            twiml = MessagingResponse()
+            twiml.message("Sorry, I encountered an error. Please try again.")
+            return twiml
 
     def _send_message(self, to: str, body: str):
         """Helper to send Twilio message"""
