@@ -5,8 +5,11 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 class StorageService:
-    def __init__(self, supabase_client):
+    def __init__(self, supabase_client, vector_service=None):
         self.db = supabase_client
+        self.vector = vector_service
+        logger.info("Storage service initialized with vector service: %s", 
+                   "yes" if vector_service else "no")
 
     def store_chat_message(self, phone_number: str, content: str, is_user: bool) -> Optional[str]:
         """Store a chat message in the database"""
@@ -39,6 +42,32 @@ class StorageService:
             result = self.db.table('thoughts').insert(thought_data).execute()
             thought_id = result.data[0]['id']
             logger.info(f"Stored thought with ID: {thought_id}")
+
+            # Store in vector database if available
+            if self.vector and transcription:
+                try:
+                    logger.info("Getting embedding for thought...")
+                    embedding_response = openai_client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=transcription
+                    )
+                    embedding = embedding_response.data[0].embedding
+                    
+                    metadata = {
+                        'thought_id': thought_id,
+                        'user_phone': phone_number,
+                        'created_at': thought_data['created_at']
+                    }
+                    
+                    vector_id = self.vector.store_vector(
+                        text=transcription,
+                        embedding=embedding,
+                        metadata=metadata
+                    )
+                    logger.info(f"Stored vector with ID: {vector_id}")
+                except Exception as e:
+                    logger.error(f"Failed to store vector: {str(e)}")
+            
             return thought_id
             
         except Exception as e:

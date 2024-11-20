@@ -52,26 +52,22 @@ except Exception as e:
     logger.error(f"Failed to initialize Supabase client: {str(e)}", exc_info=True)
     supabase = None
 
-# Initialize Pinecone
+# Initialize services with proper order and logging
 try:
     logger.info("Initializing Pinecone...")
     pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
     index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
-    logger.info(f"Connecting to Pinecone index: {index_name}")
     index = pc.Index(index_name)
-    # Test the connection
     stats = index.describe_index_stats()
-    logger.info(f"Successfully connected to Pinecone. Index stats: {stats}")
+    logger.info(f"Pinecone initialized. Index stats: {stats}")
+    vector_service = VectorService(index)
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}", exc_info=True)
-    index = None
-
-# Add debug logging for service initialization
-logger.info("Initializing services...")
+    vector_service = None
+    
 try:
-    storage_service = StorageService(supabase)
-    vector_service = VectorService(index) if index else None
-    logger.info("Vector service status: %s", "initialized" if vector_service else "disabled")
+    logger.info("Initializing services...")
+    storage_service = StorageService(supabase, vector_service)
     audio_service = AudioService(openai_client, audio_converter_url)
     chat_service = ChatService(
         openai_client=openai_client,
