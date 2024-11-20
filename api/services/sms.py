@@ -44,6 +44,19 @@ class SMSService:
                 body="Sorry, I encountered an error. Please try again."
             )
 
+    def handle_text_message(self, from_number: str, body: str):
+        """Synchronous handler for text messages"""
+        try:
+            logger.info(f"Processing text from {from_number}: {body[:50]}...")
+            response = self.chat.process_message(body, from_number)
+            return self._send_message(to=from_number, body=response)
+        except Exception as e:
+            logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
+            return self._send_message(
+                to=from_number,
+                body="Sorry, I encountered an error. Please try again."
+            )
+
     def _send_message(self, to: str, body: str):
         """Send a Twilio response"""
         resp = MessagingResponse()
