@@ -90,51 +90,36 @@ sms_service = SMSService(
 )
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    """Handle incoming Twilio webhook"""
+async def webhook():
+    """Handle incoming webhook from Twilio"""
     try:
-        # Get message details
-        from_number = request.form.get('From')
-        body = request.form.get('Body', '')
-        num_media = int(request.form.get('NumMedia', 0))
-        
+        from_number = request.values.get('From')
         logger.info(f"Received message from {from_number}")
-        
-        # Handle media messages
-        if num_media > 0:
-            content_type = request.form.get('MediaContentType0', '')
-            media_url = request.form.get('MediaUrl0', '')
+
+        if 'MediaContentType0' in request.values:
+            # Handle media message
+            content_type = request.values.get('MediaContentType0')
+            media_url = request.values.get('MediaUrl0')
+            body = request.values.get('Body', '')
+            
             logger.info(f"Content type: {content_type}")
             logger.info(f"Message body: {body}")
             
-            # Handle audio messages
-            if 'audio' in content_type:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    response = loop.run_until_complete(
-                        sms_service.handle_incoming_message(
-                            from_number=from_number,
-                            body=body,
-                            media_url=media_url,
-                            content_type=content_type
-                        )
-                    )
-                finally:
-                    loop.close()
-                return str(response)
-        
-        # Handle text messages synchronously
-        logger.info(f"Processing text message: {body[:50]}...")
-        return str(sms_service.handle_text_message(from_number, body))
-        
+            response = await sms_service.handle_incoming_message(from_number, body, media_url, content_type)
+            return str(response)
+        else:
+            # Handle text message (synchronous)
+            body = request.values.get('Body', '')
+            logger.info(f"Processing text message: {body}")
+            
+            response = sms_service.handle_text_message(from_number, body)
+            return str(response)
+
     except Exception as e:
         logger.error(f"Webhook error: {str(e)}", exc_info=True)
-        return str(
-            MessagingResponse().message(
-                "Sorry, I encountered an error. Please try again."
-            )
-        )
+        response = MessagingResponse()
+        response.message("Sorry, I encountered an error. Please try again.")
+        return str(response)
 
 @app.route('/status', methods=['GET'])
 def status():
