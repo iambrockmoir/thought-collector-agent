@@ -1,6 +1,7 @@
 import logging
 import tempfile
 import aiohttp
+import os
 from typing import Optional
 from openai import OpenAI
 
@@ -18,31 +19,50 @@ class AudioService:
             logger.info(f"Starting audio processing for {audio_url}")
             logger.info(f"Content type: {content_type}")
             
-            # Download audio file
+            # Download audio file with Twilio credentials
             logger.info("Downloading audio file...")
-            async with aiohttp.ClientSession() as session:
+            auth = aiohttp.BasicAuth(
+                login=os.getenv('TWILIO_ACCOUNT_SID'),
+                password=os.getenv('TWILIO_AUTH_TOKEN')
+            )
+            
+            async with aiohttp.ClientSession(auth=auth) as session:
                 async with session.get(audio_url) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to download audio: {response.status}")
+                        logger.error(await response.text())
+                        return None
                     audio_data = await response.read()
-            logger.info("Audio file downloaded")
+                    logger.info(f"Audio file downloaded: {len(audio_data)} bytes")
+                    # Log first few bytes to verify content
+                    logger.info(f"File header: {audio_data[:20].hex()}")
 
             # Convert using Rails service
             logger.info(f"Converting audio using service at {self.converter_url}")
             async with aiohttp.ClientSession() as session:
                 # Create form data with file
                 form = aiohttp.FormData()
-                form.add_field('audio',
+                form.add_field('file',
                              audio_data,
                              filename='audio.amr',
-                             content_type=content_type)
+                             content_type='audio/amr')
+                
+                headers = {
+                    'Accept': 'application/json'
+                }
 
-                async with session.post(self.converter_url, data=form) as response:
+                async with session.post(
+                    self.converter_url, 
+                    data=form,
+                    headers=headers
+                ) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"Converter service error: {error_text}")
                         raise Exception(f"Converter service returned {response.status}")
                     
                     converted_data = await response.read()
-                    logger.info("Audio successfully converted")
+                    logger.info(f"Audio successfully converted: {len(converted_data)} bytes")
 
             # Transcribe with OpenAI
             logger.info("Transcribing with OpenAI...")
