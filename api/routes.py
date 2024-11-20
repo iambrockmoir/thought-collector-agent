@@ -70,7 +70,7 @@ except Exception as e:
     
 try:
     logger.info("Initializing services...")
-    storage_service = StorageService(supabase, vector_service)
+    storage_service = StorageService(supabase, vector_service, openai_client)
     audio_service = AudioService(openai_client, audio_converter_url)
     chat_service = ChatService(
         openai_client=openai_client,

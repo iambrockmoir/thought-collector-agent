@@ -5,9 +5,10 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 class StorageService:
-    def __init__(self, supabase_client, vector_service=None):
+    def __init__(self, supabase_client, vector_service=None, openai_client=None):
         self.db = supabase_client
         self.vector = vector_service
+        self.openai = openai_client
         logger.info("Storage service initialized with vector service: %s", 
                    "yes" if vector_service else "no")
 
@@ -29,51 +30,38 @@ class StorageService:
             logger.error(f"Failed to store chat message: {str(e)}")
             return None
 
-    def store_thought(self, phone_number: str, audio_url: str, transcription: str) -> Optional[str]:
-        """Store a thought from audio"""
+    def store_thought(self, from_number: str, media_url: str = None, transcription: str = None) -> str:
+        """Store a thought in the database and vector store"""
         try:
-            thought_data = {
-                'user_phone': phone_number,
-                'audio_url': audio_url,
-                'transcription': transcription,
-                'created_at': datetime.utcnow().isoformat()
+            # Store in Supabase
+            thought = {
+                'from_number': from_number,
+                'media_url': media_url,
+                'transcription': transcription
             }
             
-            result = self.db.table('thoughts').insert(thought_data).execute()
-            thought_id = result.data[0]['id']
+            response = self.db.table('thoughts').insert(thought).execute()
+            thought_id = response.data[0]['id']
             logger.info(f"Stored thought with ID: {thought_id}")
-
-            # Store in vector database if available
+            
+            # Store vector embedding if available
             if self.vector and transcription:
-                try:
-                    logger.info(f"Getting embedding for thought: {transcription[:50]}...")
-                    embedding_response = openai_client.embeddings.create(
-                        model="text-embedding-3-small",
-                        input=transcription
-                    )
-                    embedding = embedding_response.data[0].embedding
-                    logger.info("Successfully got embedding")
-                    
-                    metadata = {
-                        'thought_id': thought_id,
-                        'user_phone': phone_number,
-                        'created_at': thought_data['created_at']
-                    }
-                    
-                    vector_id = self.vector.store_vector(
-                        text=transcription,
-                        embedding=embedding,
-                        metadata=metadata
-                    )
-                    logger.info(f"Successfully stored vector with ID: {vector_id}")
-                except Exception as e:
-                    logger.error(f"Failed to store vector: {str(e)}", exc_info=True)
-            else:
-                logger.info("Skipping vector storage: %s", 
-                           "No vector service" if not self.vector else "No transcription")
+                logger.info(f"Getting embedding for thought: {transcription[:50]}...")
+                embedding_response = self.openai.embeddings.create(
+                    model="text-embedding-ada-002",
+                    input=transcription
+                )
+                embedding = embedding_response.data[0].embedding
+                
+                self.vector.store_vector(
+                    thought_id,
+                    embedding,
+                    {'text': transcription}
+                )
+                logger.info("Vector stored successfully")
             
             return thought_id
             
         except Exception as e:
-            logger.error(f"Failed to store thought: {str(e)}", exc_info=True)
+            logger.error(f"Failed to store vector: {str(e)}", exc_info=True)
             return None 
