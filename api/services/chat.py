@@ -25,7 +25,7 @@ class ChatService:
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
-                max_tokens=500
+                max_tokens=150
             )
             
             ai_response = response.choices[0].message.content
@@ -34,6 +34,10 @@ class ChatService:
             # Store messages if storage service is available
             if self.storage:
                 self.storage.store_chat_message(phone_number, message, True)
+            
+            # Ensure response isn't too long for SMS
+            if len(ai_response) > 1500:  # SMS limit is 1600 chars
+                ai_response = ai_response[:1497] + "..."
             
             return ai_response
             
