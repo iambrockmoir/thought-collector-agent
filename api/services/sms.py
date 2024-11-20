@@ -14,7 +14,7 @@ class SMSService:
         self.storage = storage_service
 
     async def handle_incoming_message(self, from_number: str, body: str, media_url: str = None, content_type: str = None):
-        """Handle incoming SMS/MMS message"""
+        """Handle incoming SMS/MMS message asynchronously"""
         try:
             if media_url and 'audio' in content_type:
                 logger.info(f"Processing audio from {from_number}")
@@ -23,42 +23,34 @@ class SMSService:
                 if transcription:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")
                     thought_id = self.storage.store_thought(from_number, media_url, transcription)
-                    return self._send_message(
-                        to=from_number,
-                        body=f"✓ Thought recorded: {transcription[:100]}..."
+                    return MessagingResponse().message(
+                        f"✓ Thought recorded: {transcription[:100]}..."
                     )
                 else:
-                    return self._send_message(
-                        to=from_number,
-                        body="Sorry, I couldn't process that audio. Could you try sending it again?"
+                    return MessagingResponse().message(
+                        "Sorry, I couldn't process that audio. Could you try sending it again?"
                     )
             else:
-                logger.info(f"Processing text from {from_number}: {body[:50]}...")
-                response = self.chat.process_message(body, from_number)
-                return self._send_message(to=from_number, body=response)
+                return self.handle_text_message(from_number, body)
                 
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}", exc_info=True)
-            return self._send_message(
-                to=from_number,
-                body="Sorry, I encountered an error. Please try again."
+            return MessagingResponse().message(
+                "Sorry, I encountered an error. Please try again."
             )
 
     def handle_text_message(self, from_number: str, body: str):
-        """Synchronous handler for text messages"""
+        """Handle text messages synchronously"""
         try:
             logger.info(f"Processing text from {from_number}: {body[:50]}...")
             response = self.chat.process_message(body, from_number)
-            return self._send_message(to=from_number, body=response)
+            return MessagingResponse().message(response)
         except Exception as e:
             logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
-            return self._send_message(
-                to=from_number,
-                body="Sorry, I encountered an error. Please try again."
+            return MessagingResponse().message(
+                "Sorry, I encountered an error. Please try again."
             )
 
     def _send_message(self, to: str, body: str):
-        """Send a Twilio response"""
-        resp = MessagingResponse()
-        resp.message(body)
-        return str(resp), 200, {'Content-Type': 'text/xml'}
+        """Helper to send Twilio message"""
+        return MessagingResponse().message(body)

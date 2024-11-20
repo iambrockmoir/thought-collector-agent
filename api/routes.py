@@ -107,22 +107,24 @@ def webhook():
             logger.info(f"Content type: {content_type}")
             logger.info(f"Message body: {body}")
             
-            # Run async audio processing in sync context
+            # Handle audio messages
             if 'audio' in content_type:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                response = loop.run_until_complete(
-                    sms_service.handle_incoming_message(
-                        from_number=from_number,
-                        body=body,
-                        media_url=media_url,
-                        content_type=content_type
+                try:
+                    response = loop.run_until_complete(
+                        sms_service.handle_incoming_message(
+                            from_number=from_number,
+                            body=body,
+                            media_url=media_url,
+                            content_type=content_type
+                        )
                     )
-                )
-                loop.close()
+                finally:
+                    loop.close()
                 return str(response)
                 
-        # Handle text messages
+        # Handle text messages synchronously
         logger.info(f"Processing text message: {body[:50]}...")
         response = sms_service.handle_incoming_message(
             from_number=from_number,
