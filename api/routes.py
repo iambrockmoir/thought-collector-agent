@@ -65,7 +65,11 @@ vector_service = VectorService(index)
 # Initialize services
 storage_service = StorageService(supabase)
 audio_service = AudioService(openai_client, audio_converter_url)
-chat_service = ChatService(openai_client, storage_service, vector_service)
+chat_service = ChatService(
+    openai_client=openai_client,
+    storage_service=storage_service,
+    vector_service=vector_service
+)
 sms_service = SMSService(
     twilio_auth=(twilio_account_sid, twilio_auth_token),
     audio_service=audio_service,

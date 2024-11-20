@@ -5,9 +5,10 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 class ChatService:
-    def __init__(self, openai_client: OpenAI, storage_service=None):
+    def __init__(self, openai_client: OpenAI, storage_service=None, vector_service=None):
         self.client = openai_client
         self.storage = storage_service
+        self.vector = vector_service
 
     def process_message(self, message: str, phone_number: str) -> str:
         """Process a chat message and return response"""
