@@ -40,9 +40,9 @@ class AudioService:
             # Convert using Rails service
             logger.info(f"Converting audio using service at {self.converter_url}")
             async with aiohttp.ClientSession() as session:
-                # Create form data with file
+                # Create form data with file - use 'audio' as the field name
                 form = aiohttp.FormData()
-                form.add_field('file',
+                form.add_field('audio',  # Changed from 'file' to 'audio'
                              audio_data,
                              filename='audio.amr',
                              content_type='audio/amr')
