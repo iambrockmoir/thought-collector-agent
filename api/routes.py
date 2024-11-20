@@ -11,6 +11,7 @@ from .services.audio import AudioService
 from .services.chat import ChatService
 from .services.sms import SMSService
 from .services.storage import StorageService
+from .services.vector import VectorService
 
 # Configure logging
 logging.basicConfig(
@@ -58,10 +59,13 @@ except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
     index = None
 
+# Initialize vector service
+vector_service = VectorService(index)
+
 # Initialize services
 storage_service = StorageService(supabase)
 audio_service = AudioService(openai_client, audio_converter_url)
-chat_service = ChatService(openai_client, storage_service)
+chat_service = ChatService(openai_client, storage_service, vector_service)
 sms_service = SMSService(
     twilio_auth=(twilio_account_sid, twilio_auth_token),
     audio_service=audio_service,
