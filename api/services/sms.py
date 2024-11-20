@@ -3,6 +3,7 @@ import requests
 from twilio.twiml.messaging_response import MessagingResponse
 from typing import Optional, Tuple
 from twilio.rest import Client
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +24,20 @@ class SMSService:
                 if transcription:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")
                     thought_id = self.storage.store_thought(from_number, media_url, transcription)
-                    return MessagingResponse().message(
-                        f"✓ Thought recorded: {transcription[:100]}..."
-                    )
+                    
+                    # Create TwiML response
+                    response = MessagingResponse()
+                    response.message(f"✓ Thought recorded: {transcription[:100]}...")
+                    return response
                 else:
-                    return MessagingResponse().message(
-                        "Sorry, I couldn't process that audio. Could you try sending it again?"
-                    )
-            else:
-                return self.handle_text_message(from_number, body)
-                
+                    response = MessagingResponse()
+                    response.message("Sorry, I couldn't process that audio. Please try again.")
+                    return response
+            
+            return MessagingResponse().message(
+                "Sorry, I encountered an error. Please try again."
+            )
+            
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}", exc_info=True)
             return MessagingResponse().message(
@@ -44,9 +49,12 @@ class SMSService:
         try:
             logger.info(f"Processing text from {from_number}: {body[:50]}...")
             response = self.chat.process_message(body, from_number)
+            
+            # Create TwiML response
             twiml = MessagingResponse()
             twiml.message(response)
             return twiml
+            
         except Exception as e:
             logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
             twiml = MessagingResponse()
@@ -55,4 +63,8 @@ class SMSService:
 
     def _send_message(self, to: str, body: str):
         """Helper to send Twilio message"""
-        return MessagingResponse().message(body)
+        return self.client.messages.create(
+            to=to,
+            from_=os.getenv('TWILIO_PHONE_NUMBER'),
+            body=body
+        )
