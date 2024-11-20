@@ -25,9 +25,9 @@ class SMSService:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")
                     thought_id = self.storage.store_thought(from_number, media_url, transcription)
                     
-                    # Create TwiML response
+                    # Simple confirmation response
                     response = MessagingResponse()
-                    response.message(f"✓ Thought recorded: {transcription[:100]}...")
+                    response.message("✓ Thought recorded")
                     return response
                 else:
                     response = MessagingResponse()
