@@ -34,28 +34,20 @@ class AudioService:
                         return None
                     audio_data = await response.read()
                     logger.info(f"Audio file downloaded: {len(audio_data)} bytes")
-                    # Log first few bytes to verify content
                     logger.info(f"File header: {audio_data[:20].hex()}")
 
             # Convert using Rails service
             logger.info(f"Converting audio using service at {self.converter_url}")
-            async with aiohttp.ClientSession() as session:
-                # Create form data with file - use 'audio' as the field name
-                form = aiohttp.FormData()
-                form.add_field('audio',  # Changed from 'file' to 'audio'
-                             audio_data,
-                             filename='audio.amr',
-                             content_type='audio/amr')
-                
-                headers = {
-                    'Accept': 'application/json'
-                }
+            
+            # Create form data matching multer's expectations
+            data = aiohttp.FormData()
+            data.add_field('audio',  # Must match multer's upload.single('audio')
+                          audio_data,
+                          filename='audio.amr',  # Original filename
+                          content_type='audio/amr')
 
-                async with session.post(
-                    self.converter_url, 
-                    data=form,
-                    headers=headers
-                ) as response:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.converter_url, data=data) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"Converter service error: {error_text}")
@@ -63,12 +55,19 @@ class AudioService:
                     
                     converted_data = await response.read()
                     logger.info(f"Audio successfully converted: {len(converted_data)} bytes")
+                    
+                    # Log first few bytes of converted data
+                    if len(converted_data) > 0:
+                        logger.info(f"Converted data header: {converted_data[:20].hex()}")
 
             # Transcribe with OpenAI
             logger.info("Transcribing with OpenAI...")
             with tempfile.NamedTemporaryFile(suffix='.mp3') as temp_file:
                 temp_file.write(converted_data)
                 temp_file.flush()
+                
+                # Verify the MP3 file
+                logger.info(f"MP3 file size: {os.path.getsize(temp_file.name)} bytes")
                 
                 with open(temp_file.name, 'rb') as audio_file:
                     response = self.client.audio.transcriptions.create(
