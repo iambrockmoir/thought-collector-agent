@@ -21,8 +21,9 @@ class ChatService:
             
             # Get response from ChatGPT
             logger.info("Sending to ChatGPT...")
+            
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="GPT-4o mini",
                 messages=messages,
                 max_tokens=500
             )
@@ -37,5 +38,5 @@ class ChatService:
             return ai_response
             
         except Exception as e:
-            logger.error(f"Failed to process chat message: {e}")
-            return ""
+            logger.error(f"Failed to process message: {str(e)}", exc_info=True)
+            return "Sorry, I encountered an error. Please try again."
