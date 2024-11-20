@@ -7,6 +7,13 @@ logger = logging.getLogger(__name__)
 class VectorService:
     def __init__(self, pinecone_index):
         self.index = pinecone_index
+        logger.info("VectorService initialized with Pinecone index")
+        try:
+            # Test the connection
+            stats = self.index.describe_index_stats()
+            logger.info(f"Pinecone index stats: {stats}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Pinecone: {str(e)}")
 
     def store_vector(self, 
                     text: str, 
@@ -15,6 +22,7 @@ class VectorService:
         """Store a vector in Pinecone"""
         try:
             vector_id = f"thought_{datetime.utcnow().isoformat()}"
+            logger.info(f"Attempting to store vector with ID: {vector_id}")
             vector_record = {
                 'id': vector_id,
                 'values': embedding,
