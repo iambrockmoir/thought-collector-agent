@@ -90,7 +90,7 @@ sms_service = SMSService(
 )
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     """Handle incoming webhook from Twilio"""
     try:
         from_number = request.values.get('From')
@@ -105,10 +105,10 @@ async def webhook():
             logger.info(f"Content type: {content_type}")
             logger.info(f"Message body: {body}")
             
-            response = await sms_service.handle_incoming_message(from_number, body, media_url, content_type)
+            response = sms_service.handle_incoming_message(from_number, body, media_url, content_type)
             return str(response)
         else:
-            # Handle text message (synchronous)
+            # Handle text message
             body = request.values.get('Body', '')
             logger.info(f"Processing text message: {body}")
             

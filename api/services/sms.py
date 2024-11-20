@@ -6,6 +6,7 @@ from twilio.rest import Client
 import os
 import hashlib
 from datetime import datetime, timedelta
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +38,13 @@ class SMSService:
         self._recent_messages[msg_hash] = now
         return False
 
-    async def handle_incoming_message(self, from_number: str, body: str, media_url: str = None, content_type: str = None):
-        """Handle incoming SMS/MMS message asynchronously"""
+    def handle_incoming_message(self, from_number: str, body: str, media_url: str = None, content_type: str = None):
+        """Handle incoming SMS/MMS message synchronously"""
         try:
-            # Check for duplicate message
-            msg_hash = self._get_message_hash(from_number, body or media_url)
-            if self._is_duplicate(msg_hash):
-                logger.info("Duplicate message detected, skipping")
-                return MessagingResponse()
-
             if media_url and 'audio' in content_type:
                 logger.info(f"Processing audio from {from_number}")
-                transcription = await self.audio.process_audio(media_url, content_type)
+                # Use run_sync to handle async audio processing
+                transcription = asyncio.run(self.audio.process_audio(media_url, content_type))
                 
                 if transcription:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")
@@ -61,16 +57,8 @@ class SMSService:
                     response = MessagingResponse()
                     response.message("Sorry, I couldn't process that audio. Please try again.")
                     return response
-            
-            # Handle text message
-            logger.info(f"Processing text from {from_number}: {body[:50]}...")
-            chat_response = self.chat.process_message(body, from_number)
-            
-            # Create TwiML response
-            response = MessagingResponse()
-            response.message(chat_response)
-            logger.info(f"Sending SMS response: {chat_response[:50]}...")
-            return response
+            else:
+                return self.handle_text_message(from_number, body)
             
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}", exc_info=True)
