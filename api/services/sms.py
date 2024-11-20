@@ -79,14 +79,27 @@ class SMSService:
             response.message("Sorry, I encountered an error. Please try again.")
             return response
 
+    def handle_text_message(self, from_number: str, body: str):
+        """Handle text messages synchronously"""
+        try:
+            logger.info(f"Processing text from {from_number}: {body[:50]}...")
+            response = self.chat.process_message(body, from_number)
+            
+            # Create TwiML response
+            twiml = MessagingResponse()
+            twiml.message(response)
+            return twiml
+            
+        except Exception as e:
+            logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
+            twiml = MessagingResponse()
+            twiml.message("Sorry, I encountered an error. Please try again.")
+            return twiml
+
     def _send_message(self, to: str, body: str):
         """Helper to send Twilio message"""
-        try:
-            self.client.messages.create(
-                to=to,
-                from_=os.getenv('TWILIO_PHONE_NUMBER'),
-                body=body
-            )
-            logger.info(f"Sent follow-up message to {to}: {body[:50]}...")
-        except Exception as e:
-            logger.error(f"Failed to send follow-up message: {str(e)}")
+        return self.client.messages.create(
+            to=to,
+            from_=os.getenv('TWILIO_PHONE_NUMBER'),
+            body=body
+        )
