@@ -33,11 +33,12 @@ class StorageService:
     def store_thought(self, from_number: str, media_url: str = None, transcription: str = None) -> str:
         """Store a thought in the database and vector store"""
         try:
-            # Store in Supabase
+            # Store in Supabase with correct column names
             thought = {
-                'from_number': from_number,
-                'media_url': media_url,
-                'transcription': transcription
+                'user_phone': from_number,      # Changed from 'from_number'
+                'audio_url': media_url,         # Changed from 'media_url'
+                'transcription': transcription,
+                'metadata': {}                  # Add empty metadata object
             }
             
             response = self.db.table('thoughts').insert(thought).execute()
