@@ -28,10 +28,14 @@ class AudioService:
             # Convert using Rails service
             logger.info(f"Converting audio using service at {self.converter_url}")
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.converter_url,
-                    data={'audio': audio_data, 'content_type': content_type}
-                ) as response:
+                # Create form data with file
+                form = aiohttp.FormData()
+                form.add_field('audio',
+                             audio_data,
+                             filename='audio.amr',
+                             content_type=content_type)
+
+                async with session.post(self.converter_url, data=form) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"Converter service error: {error_text}")

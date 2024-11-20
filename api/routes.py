@@ -123,14 +123,10 @@ def webhook():
                 finally:
                     loop.close()
                 return str(response)
-                
+        
         # Handle text messages synchronously
         logger.info(f"Processing text message: {body[:50]}...")
-        response = sms_service.handle_incoming_message(
-            from_number=from_number,
-            body=body
-        )
-        return str(response)
+        return str(sms_service.handle_text_message(from_number, body))
         
     except Exception as e:
         logger.error(f"Webhook error: {str(e)}", exc_info=True)
