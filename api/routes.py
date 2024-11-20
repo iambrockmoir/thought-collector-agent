@@ -10,6 +10,7 @@ from datetime import datetime
 from .services.audio import AudioService
 from .services.chat import ChatService
 from .services.sms import SMSService
+from .services.storage import StorageService
 
 # Configure logging
 logging.basicConfig(
@@ -58,13 +59,14 @@ except Exception as e:
     index = None
 
 # Initialize services
+storage_service = StorageService(supabase)
 audio_service = AudioService(openai_client, audio_converter_url)
-chat_service = ChatService(openai_client, supabase)
+chat_service = ChatService(openai_client, storage_service)
 sms_service = SMSService(
     twilio_auth=(twilio_account_sid, twilio_auth_token),
     audio_service=audio_service,
     chat_service=chat_service,
-    storage_service=supabase
+    storage_service=storage_service
 )
 
 @app.route('/webhook', methods=['POST'])
