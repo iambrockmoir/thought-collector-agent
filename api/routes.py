@@ -146,10 +146,20 @@ def root():
         stats = None
         if index:
             stats = index.describe_index_stats()
+            # Convert stats to a serializable format
+            stats = {
+                'dimension': stats.get('dimension'),
+                'index_fullness': stats.get('index_fullness'),
+                'total_vector_count': stats.get('total_vector_count'),
+                'namespaces': {
+                    k: {'vector_count': v.get('vector_count')} 
+                    for k, v in stats.get('namespaces', {}).items()
+                }
+            }
         
         return {
             'status': 'healthy',
-            'pinecone_stats': stats
+            'pinecone_stats': stats if stats else None
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")

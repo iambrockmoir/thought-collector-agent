@@ -46,12 +46,13 @@ class StorageService:
             # Store in vector database if available
             if self.vector and transcription:
                 try:
-                    logger.info("Getting embedding for thought...")
+                    logger.info(f"Getting embedding for thought: {transcription[:50]}...")
                     embedding_response = openai_client.embeddings.create(
                         model="text-embedding-3-small",
                         input=transcription
                     )
                     embedding = embedding_response.data[0].embedding
+                    logger.info("Successfully got embedding")
                     
                     metadata = {
                         'thought_id': thought_id,
@@ -64,12 +65,15 @@ class StorageService:
                         embedding=embedding,
                         metadata=metadata
                     )
-                    logger.info(f"Stored vector with ID: {vector_id}")
+                    logger.info(f"Successfully stored vector with ID: {vector_id}")
                 except Exception as e:
-                    logger.error(f"Failed to store vector: {str(e)}")
+                    logger.error(f"Failed to store vector: {str(e)}", exc_info=True)
+            else:
+                logger.info("Skipping vector storage: %s", 
+                           "No vector service" if not self.vector else "No transcription")
             
             return thought_id
             
         except Exception as e:
-            logger.error(f"Failed to store thought: {str(e)}")
+            logger.error(f"Failed to store thought: {str(e)}", exc_info=True)
             return None 
