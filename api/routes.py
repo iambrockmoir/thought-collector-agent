@@ -13,12 +13,15 @@ from .services.sms import SMSService
 from .services.storage import StorageService
 from .services.vector import VectorService
 
-# Configure logging
+# Configure detailed logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
+    stream=sys.stdout,
+    force=True  # Ensure our config takes precedence
 )
+
+# Create logger for this file
 logger = logging.getLogger(__name__)
 
 # Initialize Flask
@@ -51,25 +54,35 @@ except Exception as e:
 
 # Initialize Pinecone
 try:
+    logger.info("Initializing Pinecone...")
     pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
     index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
+    logger.info(f"Connecting to Pinecone index: {index_name}")
     index = pc.Index(index_name)
-    logger.info("Successfully initialized Pinecone index")
+    # Test the connection
+    stats = index.describe_index_stats()
+    logger.info(f"Successfully connected to Pinecone. Index stats: {stats}")
 except Exception as e:
-    logger.error(f"Failed to initialize Pinecone: {str(e)}")
+    logger.error(f"Failed to initialize Pinecone: {str(e)}", exc_info=True)
     index = None
 
-# Initialize vector service
-vector_service = VectorService(index)
+# Add debug logging for service initialization
+logger.info("Initializing services...")
+try:
+    storage_service = StorageService(supabase)
+    vector_service = VectorService(index) if index else None
+    logger.info("Vector service status: %s", "initialized" if vector_service else "disabled")
+    audio_service = AudioService(openai_client, audio_converter_url)
+    chat_service = ChatService(
+        openai_client=openai_client,
+        storage_service=storage_service,
+        vector_service=vector_service
+    )
+    logger.info("All services initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize services: {str(e)}", exc_info=True)
+    raise
 
-# Initialize services
-storage_service = StorageService(supabase)
-audio_service = AudioService(openai_client, audio_converter_url)
-chat_service = ChatService(
-    openai_client=openai_client,
-    storage_service=storage_service,
-    vector_service=vector_service
-)
 sms_service = SMSService(
     twilio_auth=(twilio_account_sid, twilio_auth_token),
     audio_service=audio_service,
@@ -102,3 +115,30 @@ def webhook():
     except Exception as e:
         logger.error(f"Failed to process message: {str(e)}", exc_info=True)
         return '', 200  # Silent fail
+
+@app.route('/status', methods=['GET'])
+def status():
+    """Check service status"""
+    try:
+        status = {
+            'pinecone': False,
+            'vector_service': False,
+            'stats': None
+        }
+        
+        if index:
+            try:
+                stats = index.describe_index_stats()
+                status['pinecone'] = True
+                status['stats'] = stats
+            except Exception as e:
+                logger.error(f"Pinecone test failed: {str(e)}")
+        
+        if vector_service:
+            status['vector_service'] = True
+            
+        return status, 200
+        
+    except Exception as e:
+        logger.error(f"Status check failed: {str(e)}")
+        return {'error': str(e)}, 500
