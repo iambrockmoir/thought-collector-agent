@@ -37,33 +37,29 @@ twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 audio_converter_url = os.getenv('AUDIO_CONVERTER_URL')
 
 # Initialize OpenAI client
-try:
-    openai_client = OpenAI(api_key=openai_key)
-    logger.info("OpenAI client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
-    openai_client = None
+openai_client = OpenAI(api_key=openai_key)
+logger.info("OpenAI client initialized successfully")
 
 # Initialize Supabase client
-try:
-    supabase = create_client(
-        os.getenv('SUPABASE_URL'),
-        os.getenv('SUPABASE_KEY')
-    )
-    logger.info("Supabase client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize Supabase client: {str(e)}", exc_info=True)
-    supabase = None
+supabase = create_client(
+    os.getenv('SUPABASE_URL'),
+    os.getenv('SUPABASE_KEY')
+)
+logger.info("Supabase client initialized successfully")
 
-# Initialize services with proper order and logging
+# Initialize Pinecone
 try:
     logger.info("Initializing Pinecone...")
-    pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
-    index_name = os.getenv('PINECONE_INDEX', 'thoughts-index')
-    index = pc.Index(index_name)
-    stats = index.describe_index_stats()
-    logger.info(f"Pinecone initialized. Index stats: {stats}")
-    vector_service = VectorService(index)
+    pinecone.init(
+        api_key=os.getenv('PINECONE_API_KEY'),
+        environment=os.getenv('PINECONE_ENV')
+    )
+    index = pinecone.Index(os.getenv('PINECONE_INDEX'))
+    logger.info(f"Pinecone initialized. Index stats: {index.describe_index_stats()}")
+    
+    # Pass both openai_client and index to VectorService
+    vector_service = VectorService(openai_client, index)
+    
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}", exc_info=True)
     vector_service = None

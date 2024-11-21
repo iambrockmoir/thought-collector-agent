@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class AudioService:
     def __init__(self, openai_client: OpenAI):
         self.client = openai_client
-        self.converter_url = os.getenv('AUDIO_CONVERTER_URL')
+        self.converter_url = os.getenv('AUDIO_CONVERTER_URL', '').rstrip('/')
 
     def process_audio_sync(self, audio_url: str, content_type: str) -> str:
         """Process audio file synchronously and return transcription"""
