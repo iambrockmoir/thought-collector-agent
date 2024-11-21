@@ -9,6 +9,7 @@ from datetime import datetime
 import asyncio
 from functools import partial, wraps
 from twilio.twiml.messaging_response import MessagingResponse
+from twilio.rest import Client
 
 from .services.audio import AudioService
 from .services.chat import ChatService
@@ -36,16 +37,24 @@ twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
 twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 audio_converter_url = os.getenv('AUDIO_CONVERTER_URL')
 
-# Initialize OpenAI client
-openai_client = OpenAI(api_key=openai_key)
+# Initialize clients
+logger.info("Initializing OpenAI client...")
+openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 logger.info("OpenAI client initialized successfully")
 
-# Initialize Supabase client
-supabase = create_client(
+logger.info("Initializing Supabase client...")
+supabase_client = create_client(
     os.getenv('SUPABASE_URL'),
     os.getenv('SUPABASE_KEY')
 )
 logger.info("Supabase client initialized successfully")
+
+logger.info("Initializing Twilio client...")
+twilio_client = Client(
+    os.getenv('TWILIO_ACCOUNT_SID'),
+    os.getenv('TWILIO_AUTH_TOKEN')
+)
+logger.info("Twilio client initialized successfully")
 
 # Initialize Pinecone
 logger.info("Initializing Pinecone...")
@@ -54,17 +63,10 @@ try:
     
     pinecone.init(
         api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT', 'us-west1-gcp')
+        environment=os.getenv('PINECONE_ENVIRONMENT', 'gcp-starter')  # Updated default
     )
     
     index_name = os.getenv('PINECONE_INDEX_NAME', 'thoughts')
-    if index_name not in pinecone.list_indexes():
-        pinecone.create_index(
-            name=index_name,
-            dimension=1536,  # OpenAI embedding dimension
-            metric='cosine'
-        )
-    
     vector_service = VectorService(
         openai_client=openai_client,
         pinecone_index=pinecone.Index(index_name)
@@ -74,16 +76,23 @@ except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
     vector_service = None
 
-# Initialize other services
+# Initialize services
+logger.info("Initializing services...")
 try:
-    logger.info("Initializing services...")
+    storage_service = StorageService(
+        supabase_client=supabase_client,
+        vector_service=vector_service
+    )
     
-    # Initialize base services first
-    storage_service = StorageService(vector_service)
-    audio_service = AudioService(openai_client)
-    chat_service = ChatService(openai_client, storage_service)
+    audio_service = AudioService(
+        converter_url=os.getenv('AUDIO_CONVERTER_URL')
+    )
     
-    # Initialize SMS service last since it depends on the others
+    chat_service = ChatService(
+        openai_client=openai_client,
+        storage_service=storage_service
+    )
+    
     sms_service = SMSService(
         chat_service=chat_service,
         audio_service=audio_service,
