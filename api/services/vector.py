@@ -2,14 +2,20 @@ from openai import OpenAI
 import logging
 from typing import List, Dict
 import uuid
-from pinecone import Pinecone
+import pinecone
 
 logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self, api_key: str, environment: str, index_name: str, host: str):
-        self.pc = Pinecone(api_key=api_key)
-        self.index = self.pc.Index(index_name)
+        # Initialize with the classic method
+        pinecone.init(
+            api_key=api_key,
+            environment=environment
+        )
+        
+        # Connect to index
+        self.index = pinecone.Index(index_name)
         logger.info("VectorService initialized with Pinecone index")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
@@ -49,26 +55,17 @@ class VectorService:
             logger.error(f"Failed to get embedding: {str(e)}")
             raise
 
-    def search(self, query: str, limit: int = 5) -> List[dict]:
-        """Search for similar vectors"""
+    def search(self, query_vector, top_k=5):
         try:
-            # Generate query embedding
-            response = self.openai.embeddings.create(
-                model="text-embedding-ada-002",
-                input=query
-            )
-            query_embedding = response.data[0].embedding
-            
-            # Search Pinecone
             results = self.index.query(
-                vector=query_embedding,
-                top_k=limit,
+                vector=query_vector,
+                top_k=top_k,
                 include_metadata=True
             )
-            return results.matches
+            return results
         except Exception as e:
-            logger.error(f"Search error: {str(e)}")
-            return []
+            logger.error(f"Error searching vectors: {str(e)}")
+            return None
 
     def upsert(self, vectors, metadata=None):
         try:
