@@ -20,35 +20,16 @@ class SMSService:
             os.getenv('TWILIO_AUTH_TOKEN')
         )
 
-    async def handle_text_message(self, from_number: str, body: str):
-        """Handle incoming text message"""
-        try:
-            logger.info(f"Processing text from {from_number}: {body[:50]}...")
-            
-            # Await the chat response
-            chat_response = await self.chat.process_message(body, from_number)
-            
-            logger.info(f"Sending SMS response: {chat_response[:50]}...")
-            response = MessagingResponse()
-            response.message(chat_response)
-            return str(response)
-            
-        except Exception as e:
-            logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
-            response = MessagingResponse()
-            response.message("Sorry, I encountered an error. Please try again.")
-            return str(response)
-
-    async def handle_incoming_message(self, from_number: str, body: str, media_url: str = None, content_type: str = None):
+    def handle_incoming_message(self, from_number: str, body: str, media_url: str = None, content_type: str = None):
         """Handle incoming SMS/MMS message"""
         try:
             if media_url and 'audio' in content_type:
                 logger.info(f"Processing audio from {from_number}")
-                transcription = await self.audio.process_audio(media_url, content_type)
+                transcription = self.audio.process_audio(media_url, content_type)
                 
                 if transcription:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")
-                    thought_id = await self.storage.store_thought(from_number, media_url, transcription)
+                    thought_id = self.storage.store_thought(from_number, media_url, transcription)
                     
                     response = MessagingResponse()
                     response.message("✓ Thought recorded")
@@ -58,10 +39,28 @@ class SMSService:
                     response.message("Sorry, I couldn't process that audio. Please try again.")
                     return str(response)
             else:
-                return await self.handle_text_message(from_number, body)
+                return self.handle_text_message(from_number, body)
             
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}", exc_info=True)
+            response = MessagingResponse()
+            response.message("Sorry, I encountered an error. Please try again.")
+            return str(response)
+
+    def handle_text_message(self, from_number: str, body: str):
+        """Handle incoming text message"""
+        try:
+            logger.info(f"Processing text from {from_number}: {body[:50]}...")
+            
+            chat_response = self.chat.process_message(body, from_number)
+            
+            logger.info(f"Sending SMS response: {chat_response[:50]}...")
+            response = MessagingResponse()
+            response.message(chat_response)
+            return str(response)
+            
+        except Exception as e:
+            logger.error(f"Failed to handle text message: {str(e)}", exc_info=True)
             response = MessagingResponse()
             response.message("Sorry, I encountered an error. Please try again.")
             return str(response)

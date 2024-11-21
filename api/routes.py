@@ -89,15 +89,8 @@ sms_service = SMSService(
     storage_service=storage_service
 )
 
-def async_route(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        return async_to_sync(f)(*args, **kwargs)
-    return wrapper
-
 @app.route("/webhook", methods=['POST'])
-@async_route
-async def handle_webhook():
+def handle_webhook():
     """Handle incoming SMS webhooks from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
@@ -113,7 +106,7 @@ async def handle_webhook():
             logger.info("Processing media message...")
             media_url = request.form.get('MediaUrl0')
             content_type = request.form.get('MediaContentType0')
-            response = await sms_service.handle_incoming_message(
+            response = sms_service.handle_incoming_message(
                 from_number, 
                 body, 
                 media_url, 
@@ -121,7 +114,7 @@ async def handle_webhook():
             )
         else:
             logger.info(f"Processing text message: {body}")
-            response = await sms_service.handle_incoming_message(
+            response = sms_service.handle_incoming_message(
                 from_number, 
                 body
             )
