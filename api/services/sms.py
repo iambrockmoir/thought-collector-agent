@@ -49,11 +49,11 @@ class SMSService:
             self._send_sms(from_number, error_msg)
             return str(e)
 
-    async def process_message(self, from_number: str, body: str = None, media_url: str = None, content_type: str = None) -> str:
+    def process_message(self, from_number: str, body: str = None, media_url: str = None, content_type: str = None) -> str:
         """Process incoming SMS message"""
         try:
             if media_url:
-                return await self.handle_audio_message(from_number, media_url, content_type)
+                return self.handle_audio_message(from_number, media_url, content_type)
             else:
                 return self.handle_text_message(from_number, body)
         except Exception as e:
@@ -68,13 +68,13 @@ class SMSService:
             body=body
         )
 
-    async def handle_audio_message(self, from_number: str, media_url: str, content_type: str) -> str:
+    def handle_audio_message(self, from_number: str, media_url: str, content_type: str) -> str:
         """Handle incoming audio message"""
         try:
             logger.info(f"Processing audio from {from_number}")
             
-            # Process audio through audio service with content type
-            transcription = await self.audio.process_audio(media_url, content_type)
+            # Process audio through audio service
+            transcription = self.audio.process_audio(media_url, content_type)
             logger.info(f"Audio transcribed: {transcription}")
             
             # Store the transcription

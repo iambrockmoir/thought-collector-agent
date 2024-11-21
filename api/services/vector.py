@@ -6,7 +6,8 @@ import uuid
 logger = logging.getLogger(__name__)
 
 class VectorService:
-    def __init__(self, pinecone_index):
+    def __init__(self, openai_client, pinecone_index):
+        self.openai = openai_client
         self.index = pinecone_index
         logger.info(f"VectorService initialized with Pinecone index")
         if pinecone_index:
@@ -39,22 +40,22 @@ class VectorService:
             return False
 
     def _get_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text using OpenAI"""
+        """Get embedding for text using OpenAI"""
         try:
-            response = self.client.embeddings.create(
+            response = self.openai.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
             )
             return response.data[0].embedding
         except Exception as e:
-            logger.error(f"Failed to generate embedding: {str(e)}")
-            return []
+            logger.error(f"Failed to get embedding: {str(e)}")
+            raise
 
     def search(self, query: str, limit: int = 5) -> List[dict]:
         """Search for similar vectors"""
         try:
             # Generate query embedding
-            response = self.client.embeddings.create(
+            response = self.openai.embeddings.create(
                 model="text-embedding-ada-002",
                 input=query
             )

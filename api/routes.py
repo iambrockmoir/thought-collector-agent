@@ -81,7 +81,7 @@ except Exception as e:
     raise e
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     """Handle incoming webhook from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
@@ -97,10 +97,10 @@ async def webhook():
             logger.info("Processing media message...")
             media_url = request.values.get('MediaUrl0')
             content_type = request.values.get('MediaContentType0')
-            await sms_service.process_message(from_number, media_url=media_url, content_type=content_type)
+            sms_service.process_message(from_number, media_url=media_url, content_type=content_type)
         else:
             logger.info(f"Processing text message: {body}")
-            await sms_service.process_message(from_number, body=body)
+            sms_service.process_message(from_number, body=body)
             
         logger.info("Successfully processed message")
         return 'OK'
