@@ -42,11 +42,11 @@ class VectorService:
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text using OpenAI"""
         try:
-            response = self.openai.embeddings.create(
+            response = self.openai.Embedding.create(
                 model="text-embedding-ada-002",
                 input=text
             )
-            return response.data[0].embedding
+            return response['data'][0]['embedding']
         except Exception as e:
             logger.error(f"Failed to get embedding: {str(e)}")
             raise
