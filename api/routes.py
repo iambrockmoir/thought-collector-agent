@@ -54,22 +54,12 @@ logger.info("Twilio client initialized successfully")
 # Initialize Pinecone
 logger.info("Initializing Pinecone...")
 try:
-    import pinecone
-    
-    # Initialize Pinecone with environment
-    pinecone.init(
-        api_key=settings.pinecone_api_key,
-        environment=settings.pinecone_environment
-    )
-    
-    # Create index without host parameter
-    index = pinecone.Index(settings.pinecone_index)
-    
     vector_service = VectorService(
-        openai_client=openai_client,
-        pinecone_index=index
+        api_key=settings.pinecone_api_key,
+        environment=settings.pinecone_environment,
+        index_name=settings.pinecone_index,
+        host=settings.pinecone_host
     )
-    logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
     vector_service = None

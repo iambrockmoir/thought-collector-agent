@@ -2,16 +2,23 @@ from openai import OpenAI
 import logging
 from typing import List, Dict
 import uuid
+import pinecone
 
 logger = logging.getLogger(__name__)
 
 class VectorService:
-    def __init__(self, openai_client, pinecone_index):
-        self.openai = openai_client
-        self.index = pinecone_index
-        logger.info(f"VectorService initialized with Pinecone index")
-        if pinecone_index:
-            stats = pinecone_index.describe_index_stats()
+    def __init__(self, api_key: str, environment: str, index_name: str, host: str):
+        pinecone.init(
+            api_key=api_key,
+            environment=environment,
+        )
+        self.index = pinecone.Index(
+            index_name,
+            host=host
+        )
+        logger.info("VectorService initialized with Pinecone index")
+        if self.index:
+            stats = self.index.describe_index_stats()
             logger.info(f"Pinecone index stats: {stats}")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
