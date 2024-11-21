@@ -80,47 +80,33 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise e
 
-@app.route("/webhook", methods=['POST'])
-def handle_webhook():
-    """Handle incoming SMS webhooks from Twilio"""
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    """Handle incoming webhook from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
         
-        # Get message data
-        from_number = request.form.get('From')
-        body = request.form.get('Body', '')
-        num_media = int(request.form.get('NumMedia', 0))
+        # Get message details
+        from_number = request.values.get('From', '')
+        body = request.values.get('Body', '')
+        num_media = int(request.values.get('NumMedia', 0))
         
         logger.info(f"Received message from {from_number}")
         
         if num_media > 0:
             logger.info("Processing media message...")
-            media_url = request.form.get('MediaUrl0')
-            content_type = request.form.get('MediaContentType0')
-            response = sms_service.handle_incoming_message(
-                from_number, 
-                body, 
-                media_url, 
-                content_type
-            )
+            media_url = request.values.get('MediaUrl0')
+            await sms_service.process_message(from_number, media_url=media_url)
         else:
             logger.info(f"Processing text message: {body}")
-            response = sms_service.handle_incoming_message(
-                from_number, 
-                body
-            )
-        
+            await sms_service.process_message(from_number, body=body)
+            
         logger.info("Successfully processed message")
-        return response, 200, {'Content-Type': 'application/xml'}
-    
+        return 'OK'
+        
     except Exception as e:
-        logger.error(f"Error handling message: {str(e)}", exc_info=True)
-        return (
-            '<?xml version="1.0" encoding="UTF-8"?><Response>'
-            '<Message>Sorry, an error occurred.</Message></Response>',
-            500,
-            {'Content-Type': 'application/xml'}
-        )
+        logger.error(f"Failed to process webhook: {str(e)}")
+        return str(e), 500
 
 @app.route('/status', methods=['GET'])
 def status():
