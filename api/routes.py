@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, Response
 import logging
 import sys
 import os
@@ -9,6 +9,7 @@ from datetime import datetime
 import asyncio
 from functools import partial
 from twilio.twiml.messaging_response import MessagingResponse
+from asgiref.sync import async_to_sync
 
 from .services.audio import AudioService
 from .services.chat import ChatService
@@ -89,7 +90,7 @@ sms_service = SMSService(
 )
 
 @app.route("/webhook", methods=['POST'])
-async def handle_webhook():
+def handle_webhook():
     """Handle incoming SMS webhooks from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
@@ -101,11 +102,12 @@ async def handle_webhook():
         
         logger.info(f"Received message from {from_number}")
         
+        # Use async_to_sync to handle the async SMS service
         if num_media > 0:
             logger.info("Processing media message...")
             media_url = request.form.get('MediaUrl0')
             content_type = request.form.get('MediaContentType0')
-            response = await sms_service.handle_incoming_message(
+            response = async_to_sync(sms_service.handle_incoming_message)(
                 from_number, 
                 body, 
                 media_url, 
@@ -113,7 +115,10 @@ async def handle_webhook():
             )
         else:
             logger.info(f"Processing text message: {body}")
-            response = await sms_service.handle_incoming_message(from_number, body)
+            response = async_to_sync(sms_service.handle_incoming_message)(
+                from_number, 
+                body
+            )
         
         logger.info("Successfully processed message")
         return response, 200, {'Content-Type': 'application/xml'}
