@@ -9,7 +9,6 @@ from datetime import datetime
 import asyncio
 from functools import partial, wraps
 from twilio.twiml.messaging_response import MessagingResponse
-from asgiref.sync import async_to_sync
 
 from .services.audio import AudioService
 from .services.chat import ChatService

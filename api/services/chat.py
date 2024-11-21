@@ -6,20 +6,19 @@ from typing import List, Dict
 logger = logging.getLogger(__name__)
 
 class ChatService:
-    def __init__(self, openai_client: OpenAI, storage_service, vector_service):
+    def __init__(self, openai_client: OpenAI, storage_service=None, vector_service=None):
         self.client = openai_client
         self.storage = storage_service
         self.vector = vector_service
-        self.max_context_thoughts = 3  # Number of relevant thoughts to include
 
-    async def process_message(self, message: str, phone_number: str) -> str:
-        """Process a chat message and return response with relevant thought context"""
+    def process_message(self, message: str, phone_number: str) -> str:
+        """Process a chat message and return response"""
         try:
             # Get relevant thoughts using vector similarity
-            relevant_thoughts = await self.storage.search_thoughts(
+            relevant_thoughts = self.storage.search_thoughts(
                 user_phone=phone_number,
                 query=message,
-                limit=self.max_context_thoughts
+                limit=3
             )
             
             # Format thoughts as context
@@ -39,9 +38,6 @@ class ChatService:
                 {"role": "user", "content": message}
             ]
             
-            # Get response from ChatGPT
-            logger.info("Sending to ChatGPT with thought context...")
-            
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
@@ -52,7 +48,7 @@ class ChatService:
             
             # Store the interaction
             if self.storage:
-                await self.storage.store_chat_message(
+                self.storage.store_chat_message(
                     phone_number, 
                     message, 
                     ai_response,
