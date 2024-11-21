@@ -30,7 +30,7 @@ class SMSService:
                     logger.error("Failed to get transcription from audio")
                     return
                 
-                # Only store after we have the transcription
+                # Store the transcribed message
                 await self.storage.store_chat_message(
                     message=transcription,
                     from_number=from_number
@@ -41,6 +41,11 @@ class SMSService:
                     message=transcription,
                     user_phone=from_number
                 )
+                
+                # Send the response via SMS
+                logger.info(f"Sending SMS response to {from_number}: {response}")
+                await self.send_message(to=from_number, body=response)
+                
                 return response
             else:
                 # Handle text message
@@ -49,6 +54,11 @@ class SMSService:
                     message=message,
                     user_phone=from_number
                 )
+                
+                # Send the response via SMS
+                logger.info(f"Sending SMS response to {from_number}: {response}")
+                await self.send_message(to=from_number, body=response)
+                
                 return response
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}")
@@ -106,3 +116,17 @@ class SMSService:
         except Exception as e:
             logger.error(f"Failed to send error message: {str(e)}")
             # Don't raise here to avoid error cascade
+
+    async def send_message(self, to: str, body: str) -> None:
+        """Send an SMS message using Twilio"""
+        try:
+            logger.info(f"Sending message to {to}")
+            message = self.client.messages.create(
+                to=to,
+                from_=self.phone_number,
+                body=body
+            )
+            logger.info(f"Message sent successfully: {message.sid}")
+        except Exception as e:
+            logger.error(f"Failed to send message: {str(e)}")
+            raise
