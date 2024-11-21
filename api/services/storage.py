@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -65,4 +65,28 @@ class StorageService:
             
         except Exception as e:
             logger.error(f"Failed to store vector: {str(e)}", exc_info=True)
+            return None 
+
+    async def store_chat_message(
+        self, 
+        user_phone: str, 
+        message: str, 
+        response: str,
+        related_thought_ids: List[str]
+    ) -> str:
+        """Store a chat message with references to related thoughts"""
+        try:
+            chat_record = {
+                'user_phone': user_phone,
+                'message': message,
+                'response': response,
+                'related_thoughts': related_thought_ids,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            result = await self.db.table('chat_history').insert(chat_record).execute()
+            return result.data[0]['id']
+            
+        except Exception as e:
+            logger.error(f"Failed to store chat message: {str(e)}")
             return None 
