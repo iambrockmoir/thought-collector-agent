@@ -96,7 +96,8 @@ def webhook():
         if num_media > 0:
             logger.info("Processing media message...")
             media_url = request.values.get('MediaUrl0')
-            sms_service.process_message(from_number, media_url=media_url)
+            content_type = request.values.get('MediaContentType0')
+            sms_service.process_message(from_number, media_url=media_url, content_type=content_type)
         else:
             logger.info(f"Processing text message: {body}")
             sms_service.process_message(from_number, body=body)
