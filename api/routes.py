@@ -61,15 +61,20 @@ logger.info("Initializing Pinecone...")
 try:
     import pinecone
     
+    # Initialize without environment
     pinecone.init(
-        api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT')
+        api_key=os.getenv('PINECONE_API_KEY')
     )
     
-    index_name = os.getenv('PINECONE_INDEX')
+    # Create index with full host URL
+    index = pinecone.Index(
+        os.getenv('PINECONE_INDEX'),
+        host=os.getenv('PINECONE_HOST')
+    )
+    
     vector_service = VectorService(
         openai_client=openai_client,
-        pinecone_index=pinecone.Index(index_name)
+        pinecone_index=index
     )
     logger.info("Pinecone initialized successfully")
 except Exception as e:
