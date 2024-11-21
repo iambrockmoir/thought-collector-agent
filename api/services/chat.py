@@ -11,31 +11,29 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
-    def process_message(self, message: str, phone_number: str) -> str:
-        """Process a chat message and return response"""
+    async def process_message(self, user_phone: str, message: str) -> str:
+        """Process a chat message and return a response"""
         try:
-            # Get relevant thoughts using vector similarity
+            # Search for relevant thoughts
             relevant_thoughts = self.storage.search_thoughts(
-                user_phone=phone_number,
                 query=message,
-                limit=3
+                user_phone=user_phone,  # Pass user_phone to filter results
+                limit=5
             )
             
-            # Format thoughts as context
-            thought_context = self._format_thought_context(relevant_thoughts)
-            
-            # Create messages for ChatGPT with context
+            # Format thoughts for context
+            thought_context = ""
+            if relevant_thoughts:
+                thought_context = "Here are some relevant thoughts I found:\n"
+                for i, thought in enumerate(relevant_thoughts, 1):
+                    thought_context += f"{i}. {thought.metadata.get('transcription', 'No transcription available')}\n"
+            else:
+                thought_context = "I couldn't find any relevant thoughts in your history."
+
+            # Generate response using ChatGPT
             messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a helpful assistant who helps people reflect on their thoughts. "
-                        "Below are some relevant thoughts the user previously recorded: \n\n"
-                        f"{thought_context}\n\n"
-                        "Use this context to provide more relevant responses to the user's query."
-                    )
-                },
-                {"role": "user", "content": message}
+                {"role": "system", "content": "You are a helpful assistant managing a user's thoughts and memories."},
+                {"role": "user", "content": f"Context: {thought_context}\n\nUser question: {message}"}
             ]
             
             response = self.client.chat.completions.create(
@@ -44,22 +42,16 @@ class ChatService:
                 max_tokens=150
             )
             
-            ai_response = response.choices[0].message.content
+            reply = response.choices[0].message.content
+
+            # Store the chat interaction
+            await self.storage.store_chat_message(user_phone, message, reply)
             
-            # Store the interaction synchronously
-            if self.storage:
-                self.storage.store_chat_message(
-                    phone_number, 
-                    message, 
-                    ai_response,
-                    [t['id'] for t in relevant_thoughts]
-                )
-            
-            return ai_response
-            
+            return reply
+
         except Exception as e:
-            logger.error(f"Failed to process message: {str(e)}", exc_info=True)
-            return "Sorry, I encountered an error. Please try again."
+            logger.error(f"Failed to process message: {str(e)}")
+            raise
 
     def _format_thought_context(self, thoughts: List[Dict]) -> str:
         """Format thoughts into a string for context"""

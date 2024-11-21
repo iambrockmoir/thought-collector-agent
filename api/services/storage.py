@@ -19,6 +19,13 @@ class StorageService:
     def store_thought(self, user_phone: str, audio_url: str, transcription: str, metadata: dict = None) -> bool:
         """Store a thought in Supabase and its embedding in Pinecone"""
         try:
+            # Prepare metadata with user_phone
+            full_metadata = {
+                'user_phone': user_phone,
+                'audio_url': audio_url,
+                **(metadata or {})
+            }
+            
             # Store metadata in Supabase
             thought_data = {
                 'user_phone': user_phone,
@@ -33,10 +40,10 @@ class StorageService:
                 logger.error(f"Failed to store thought in Supabase: {response.error}")
                 return False
 
-            # Store embedding in Pinecone if vector service is available
-            if self.vector and transcription:
-                self.vector.store_embedding(transcription, metadata={'user_phone': user_phone})
-
+            # Store embedding in Pinecone with user metadata
+            if self.vector:
+                return self.vector.store_embedding(transcription, full_metadata)
+            
             return True
 
         except Exception as e:
@@ -82,14 +89,24 @@ class StorageService:
             logger.error(f"Failed to store chat message: {str(e)}")
             return None 
 
-    def search_thoughts(self, query: str, limit: int = 5) -> List[dict]:
+    def search_thoughts(self, query: str, user_phone: str = None, limit: int = 5) -> List[dict]:
         """Search for similar thoughts using vector similarity"""
         try:
             if not self.vector:
                 logger.warning("Vector service not available for search")
                 return []
 
+            # Get vector search results
             results = self.vector.search(query, limit)
+            
+            # If user_phone is provided, filter results for that user
+            if user_phone:
+                filtered_results = [
+                    r for r in results 
+                    if r.metadata.get('user_phone') == user_phone
+                ]
+                return filtered_results
+            
             return results
 
         except Exception as e:
