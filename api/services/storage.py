@@ -11,39 +11,35 @@ class StorageService:
     def __init__(self, supabase_client, vector_service=None):
         self.supabase = supabase_client
         self.vector = vector_service
-        self.messages_table = 'messages'
+        self.messages_table = 'chat_history'
         self.thoughts_table = 'thoughts'
         logger.info(f"Storage service initialized with vector service: {bool(vector_service)}")
 
     async def store_chat_message(self, message: str, from_number: str = None, response: str = None, related_thought_ids: List[str] = None) -> None:
         """Store a chat message in the database"""
         try:
-            data = {
-                'phone_number': from_number,
+            # Store user message
+            user_data = {
+                'user_phone': from_number,
                 'message': message,
                 'is_user': True,
                 'created_at': datetime.now().isoformat()
             }
             
-            if response:
-                data['response'] = response
-                
-            if related_thought_ids:
-                data['related_thought_ids'] = related_thought_ids
-                
-            result = self.supabase.table(self.messages_table).insert(data).execute()
+            logger.info(f"Storing user message: {user_data}")
+            result = self.supabase.table(self.messages_table).insert(user_data).execute()
             if hasattr(result, 'error') and result.error:
                 raise Exception(f"Supabase error: {result.error}")
             
             # If there's a response, store it as a separate message
             if response:
                 response_data = {
-                    'phone_number': from_number,
+                    'user_phone': from_number,
                     'message': response,
                     'is_user': False,
-                    'created_at': datetime.now().isoformat(),
-                    'related_thought_ids': related_thought_ids
+                    'created_at': datetime.now().isoformat()
                 }
+                logger.info(f"Storing assistant response: {response_data}")
                 result = self.supabase.table(self.messages_table).insert(response_data).execute()
                 if hasattr(result, 'error') and result.error:
                     raise Exception(f"Supabase error storing response: {result.error}")
