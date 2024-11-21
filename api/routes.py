@@ -50,14 +50,18 @@ logger.info("Supabase client initialized successfully")
 # Initialize Pinecone and Vector Service
 try:
     logger.info("Initializing Pinecone...")
-    pc = pinecone.Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
-    index = pc.Index(os.getenv('PINECONE_INDEX'))
-    logger.info(f"Pinecone initialized. Index stats: {index.describe_index_stats()}")
-    vector_service = VectorService(openai_client, index)
+    pinecone.init(
+        api_key=os.getenv('PINECONE_API_KEY'),
+        environment=os.getenv('PINECONE_ENVIRONMENT')
+    )
+    index_name = os.getenv('PINECONE_INDEX_NAME', 'thoughts')
+    pc = pinecone.Index(index_name)
+    logger.info("Pinecone initialized successfully")
+    vector_service = VectorService(openai_client, pc)
 except Exception as e:
-    logger.error(f"Failed to initialize Pinecone: {str(e)}", exc_info=True)
+    logger.error(f"Failed to initialize Pinecone: {str(e)}")
     vector_service = None
-    index = None
+    pc = None
 
 # Initialize other services
 try:
@@ -119,9 +123,9 @@ def status():
             'stats': None
         }
         
-        if index:
+        if pc:
             try:
-                stats = index.describe_index_stats()
+                stats = pc.describe_index_stats()
                 status['pinecone'] = True
                 status['stats'] = stats
             except Exception as e:
@@ -141,8 +145,8 @@ def root():
     """Basic health check"""
     try:
         stats = None
-        if index:
-            stats = index.describe_index_stats()
+        if pc:
+            stats = pc.describe_index_stats()
             # Convert stats to a serializable format
             stats = {
                 'dimension': stats.get('dimension'),

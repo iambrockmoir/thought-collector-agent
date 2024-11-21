@@ -10,64 +10,37 @@ logger = logging.getLogger(__name__)
 class StorageService:
     def __init__(self, supabase_client, vector_service=None):
         self.supabase = supabase_client
-        self.vector = vector_service
-        logger.info(f"Storage service initialized with vector service: {vector_service is not None}")
+        self.vector_service = vector_service
+        self.messages_table = 'messages'
+        self.thoughts_table = 'thoughts'
+        logger.info(f"Storage service initialized with vector service: {bool(vector_service)}")
 
-    async def store_chat_message(self, user_phone: str, message: str, response: str, related_thought_ids: List[str] = None) -> bool:
-        """Store a chat interaction in Supabase"""
+    async def store_chat_message(self, from_number: str, message: str, is_user: bool = True) -> None:
         try:
-            chat_data = {
-                "user_phone": user_phone,
-                "message": message,
-                "response": response,
-                "related_thought_ids": related_thought_ids or [],
-                "created_at": datetime.utcnow().isoformat()
+            data = {
+                'phone_number': from_number,
+                'message': message,
+                'is_user': is_user,
+                'created_at': datetime.now().isoformat()
             }
-            
-            response = self.supabase.table('chat_history').insert(chat_data).execute()
-            
-            if hasattr(response, 'error') and response.error is not None:
-                logger.error(f"Failed to store chat message in Supabase: {response.error}")
-                return False
-                
-            return True
-
+            self.supabase.table(self.messages_table).insert(data).execute()
         except Exception as e:
             logger.error(f"Failed to store chat message: {str(e)}")
-            return False
+            raise
 
-    def store_thought(self, user_phone: str, transcription: str) -> bool:
-        """Store a thought in both Supabase and vector store"""
+    def store_thought(self, from_number: str, thought: str, embedding: Optional[List[float]] = None) -> None:
         try:
-            # Prepare metadata
-            full_metadata = {
-                "user_phone": user_phone,
-                "transcription": transcription,
-                "created_at": datetime.utcnow().isoformat()
+            data = {
+                'phone_number': from_number,
+                'thought': thought,
+                'created_at': datetime.now().isoformat()
             }
-            
-            # Store in Supabase
-            thought_data = {
-                "user_phone": user_phone,
-                "transcription": transcription,
-                "created_at": full_metadata["created_at"]
-            }
-            
-            response = self.supabase.table('thoughts').insert(thought_data).execute()
-            
-            if hasattr(response, 'error') and response.error is not None:
-                logger.error(f"Failed to store thought in Supabase: {response.error}")
-                return False
-
-            # Store embedding in Pinecone
-            if self.vector:
-                return self.vector.store_embedding(transcription, full_metadata)
-            
-            return True
-
+            if embedding:
+                data['embedding'] = embedding
+            self.supabase.table(self.thoughts_table).insert(data).execute()
         except Exception as e:
             logger.error(f"Failed to store thought: {str(e)}")
-            return False
+            raise
 
     def search_thoughts(self, query: str, user_phone: str = None, limit: int = 5) -> List[dict]:
         """Search for similar thoughts using vector similarity"""
