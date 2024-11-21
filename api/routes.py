@@ -88,6 +88,7 @@ try:
     )
     
     audio_service = AudioService(
+        openai_client=openai_client,
         converter_url=os.getenv('AUDIO_CONVERTER_URL')
     )
     

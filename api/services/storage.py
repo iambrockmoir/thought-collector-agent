@@ -18,6 +18,15 @@ class StorageService:
     async def store_chat_message(self, message: str, from_number: str = None, response: str = None, related_thought_ids: List[str] = None) -> None:
         """Store a chat message in the database"""
         try:
+            # Validate required fields
+            if not message:
+                logger.error("Cannot store message: message text is required")
+                return
+            
+            if not from_number:
+                logger.error("Cannot store message: phone number is required")
+                return
+            
             # Store user message
             user_data = {
                 'user_phone': from_number,

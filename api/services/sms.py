@@ -25,11 +25,23 @@ class SMSService:
                 # Handle audio message
                 logger.info(f"Processing audio from {from_number}...")
                 transcription = await self.audio.process_audio(media_url, content_type)
+                
+                if not transcription:
+                    logger.error("Failed to get transcription from audio")
+                    return
+                
+                # Only store after we have the transcription
                 await self.storage.store_chat_message(
                     message=transcription,
                     from_number=from_number
                 )
-                # ... rest of audio handling ...
+                
+                # Process the transcribed message
+                response = await self.chat.process_message(
+                    message=transcription,
+                    user_phone=from_number
+                )
+                return response
             else:
                 # Handle text message
                 logger.info(f"Processing text from {from_number}: {message}...")

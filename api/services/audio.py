@@ -9,7 +9,8 @@ import requests
 logger = logging.getLogger(__name__)
 
 class AudioService:
-    def __init__(self, converter_url: str):
+    def __init__(self, openai_client, converter_url: str):
+        self.client = openai_client
         self.converter_url = converter_url
         logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
