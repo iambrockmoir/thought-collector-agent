@@ -5,30 +5,32 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 
 class StorageService:
-    def __init__(self, supabase_client, vector_service=None, openai_client=None):
-        self.db = supabase_client
+    def __init__(self, supabase_client, vector_service=None):
+        self.supabase = supabase_client
         self.vector = vector_service
-        self.openai = openai_client
-        logger.info("Storage service initialized with vector service: %s", 
-                   "yes" if vector_service else "no")
+        logger.info(f"Storage service initialized with vector service: {vector_service is not None}")
 
-    def store_chat_message(self, phone_number: str, content: str, is_user: bool) -> Optional[str]:
-        """Store a chat message in the database"""
+    def _generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding using vector service"""
+        if not self.vector:
+            logger.error("Vector service not initialized")
+            return []
+        return self.vector.generate_embedding(text)
+
+    def store_chat_message(self, phone_number: str, message: str, response: str, thought_ids: List[str] = None):
+        """Store chat message in database"""
         try:
             data = {
                 'user_phone': phone_number,
-                'message': content,
-                'is_user': is_user,
-                'created_at': datetime.utcnow().isoformat()
+                'message': message,
+                'response': response,
+                'thought_ids': thought_ids or []
             }
-            
-            response = self.db.table('chat_history').insert(data).execute()
-            logger.info(f"Stored chat message for {phone_number}")
-            return response.data[0]['id'] if response.data else None
-            
+            self.supabase.table('chat_history').insert(data).execute()
+            return True
         except Exception as e:
             logger.error(f"Failed to store chat message: {str(e)}")
-            return None
+            return False
 
     def store_thought(self, from_number: str, media_url: str = None, transcription: str = None) -> str:
         """Store a thought in the database and vector store"""

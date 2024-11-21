@@ -25,7 +25,8 @@ class SMSService:
         try:
             if media_url and 'audio' in content_type:
                 logger.info(f"Processing audio from {from_number}")
-                transcription = self.audio.process_audio(media_url, content_type)
+                # Process audio synchronously
+                transcription = self.audio.process_audio_sync(media_url, content_type)
                 
                 if transcription:
                     logger.info(f"Audio transcribed: {transcription[:50]}...")

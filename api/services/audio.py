@@ -4,14 +4,40 @@ import aiohttp
 import os
 from typing import Optional
 from openai import OpenAI
+import requests
 
 logger = logging.getLogger(__name__)
 
 class AudioService:
-    def __init__(self, openai_client: OpenAI, converter_url: str):
+    def __init__(self, openai_client: OpenAI):
         self.client = openai_client
-        self.converter_url = converter_url
-        self.timeout = 25
+
+    def process_audio_sync(self, audio_url: str, content_type: str) -> str:
+        """Process audio file synchronously and return transcription"""
+        try:
+            # Download audio file
+            audio_data = requests.get(audio_url).content
+            
+            # Save temporarily
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_file.write(audio_data)
+                temp_path = temp_file.name
+
+            # Transcribe
+            with open(temp_path, 'rb') as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+
+            # Cleanup
+            os.unlink(temp_path)
+            
+            return transcript.text
+
+        except Exception as e:
+            logger.error(f"Failed to process audio: {str(e)}", exc_info=True)
+            return None
 
     async def process_audio(self, audio_url: str, content_type: str) -> Optional[str]:
         """Process audio and return transcription"""
