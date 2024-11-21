@@ -22,12 +22,10 @@ class AudioService:
             amr_data = requests.get(audio_url).content
             
             # Convert AMR to MP3 using conversion service
-            logger.info(f"Converting AMR to MP3 using {self.converter_url}")
+            logger.info(f"Converting AMR to MP3...")
             files = {'audio': ('audio.amr', amr_data, 'audio/amr')}
             
-            # Use the converter URL directly since it already includes /convert
             logger.info(f"Making conversion request to: {self.converter_url}")
-            
             conversion_response = requests.post(
                 self.converter_url,
                 files=files,
@@ -47,7 +45,6 @@ class AudioService:
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
                 temp_file.write(mp3_data)
                 temp_path = temp_file.name
-                logger.info(f"Saved MP3 to temporary file: {temp_path}")
 
             # Transcribe MP3
             logger.info("Transcribing audio with OpenAI Whisper...")
@@ -59,7 +56,7 @@ class AudioService:
 
             # Cleanup
             os.unlink(temp_path)
-            logger.info("Transcription complete and temp file cleaned up")
+            logger.info("Transcription complete")
             
             return transcript.text
 
