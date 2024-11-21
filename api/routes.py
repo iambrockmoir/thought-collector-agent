@@ -96,33 +96,34 @@ except Exception as e:
     raise e
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    """Handle incoming webhook from Twilio"""
+async def webhook():
+    """Handle incoming SMS webhook from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
         
-        # Get message details
-        from_number = request.values.get('From', '')
-        body = request.values.get('Body', '')
-        num_media = int(request.values.get('NumMedia', 0))
+        # Extract message details
+        from_number = request.form.get('From')
+        message = request.form.get('Body', '')
+        num_media = int(request.form.get('NumMedia', 0))
         
         logger.info(f"Received message from {from_number}")
         
+        # Handle media or text
         if num_media > 0:
             logger.info("Processing media message...")
-            media_url = request.values.get('MediaUrl0')
-            content_type = request.values.get('MediaContentType0')
-            sms_service.process_message(from_number, media_url=media_url, content_type=content_type)
+            media_url = request.form.get('MediaUrl0')
+            content_type = request.form.get('MediaContentType0')
+            await sms_service.handle_message(from_number, message, media_url, content_type)
         else:
-            logger.info(f"Processing text message: {body}")
-            sms_service.process_message(from_number, body=body)
+            logger.info(f"Processing text message: {message}")
+            await sms_service.handle_message(from_number, message)
             
         logger.info("Successfully processed message")
-        return 'OK'
+        return 'OK', 200
         
     except Exception as e:
         logger.error(f"Failed to process webhook: {str(e)}")
-        return str(e), 500
+        return 'Error', 500
 
 @app.route('/status', methods=['GET'])
 def status():
