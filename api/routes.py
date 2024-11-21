@@ -99,8 +99,9 @@ try:
     
     sms_service = SMSService(
         twilio_client=twilio_client,
-        storage_service=storage_service,
+        phone_number=settings.twilio_phone_number,
         audio_service=audio_service,
+        storage_service=storage_service,
         chat_service=chat_service
     )
     
