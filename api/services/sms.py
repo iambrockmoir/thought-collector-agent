@@ -67,3 +67,26 @@ class SMSService:
             from_=os.getenv('TWILIO_PHONE_NUMBER'),
             body=body
         )
+
+    def handle_audio_message(self, from_number: str, media_url: str) -> str:
+        """Handle incoming audio message"""
+        try:
+            logger.info(f"Processing audio from {from_number}")
+            
+            # Process audio through audio service
+            transcription = self.audio.process_audio(media_url)
+            logger.info(f"Audio transcribed: {transcription}")
+            
+            # Store the transcription
+            self.storage.store_thought(from_number, transcription)
+            
+            # Send confirmation
+            response = "Got it! I've stored your thought."
+            self._send_sms(from_number, response)
+            return response
+            
+        except Exception as e:
+            logger.error(f"Failed to handle audio message: {str(e)}")
+            error_msg = "Sorry, I had trouble processing your audio. Please try again."
+            self._send_sms(from_number, error_msg)
+            return str(e)
