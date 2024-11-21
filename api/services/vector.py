@@ -3,20 +3,31 @@ import logging
 from typing import List, Dict
 import uuid
 import pinecone
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self, api_key: str, environment: str, index_name: str, host: str):
-        # Initialize with the classic method
+        # Extract the domain from the host URL
+        parsed_url = urlparse(host)
+        domain = parsed_url.netloc.split('.')[0]  # Get the first part of the domain
+        
+        # Initialize Pinecone with the correct environment
         pinecone.init(
             api_key=api_key,
             environment=environment
         )
         
-        # Connect to index
-        self.index = pinecone.Index(index_name)
-        logger.info("VectorService initialized with Pinecone index")
+        try:
+            # Connect to index
+            self.index = pinecone.Index(
+                name=index_name
+            )
+            logger.info(f"VectorService initialized with Pinecone index: {index_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize Pinecone index: {str(e)}")
+            raise e
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
