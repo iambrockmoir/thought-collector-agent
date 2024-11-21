@@ -82,32 +82,15 @@ class StorageService:
             logger.error(f"Failed to store chat message: {str(e)}")
             return None 
 
-    def search_thoughts(
-        self,
-        user_phone: str,
-        query: str,
-        limit: int = 5
-    ) -> List[Dict[str, Any]]:
-        """Search for relevant thoughts using vector similarity"""
+    def search_thoughts(self, query: str, limit: int = 5) -> List[dict]:
+        """Search for similar thoughts using vector similarity"""
         try:
-            # Generate embedding for query
-            query_embedding = self._generate_embedding(query)
-            
-            # Search Pinecone for similar thoughts
-            similar_thoughts = self.pinecone.similarity_search(
-                query_embedding,
-                filter={'user_phone': user_phone},
-                limit=limit
-            )
-            
-            # Get full thought records from Supabase
-            thought_ids = [thought['id'] for thought in similar_thoughts]
-            thoughts = self.supabase.table('thoughts')\
-                .select('*')\
-                .in_('id', thought_ids)\
-                .execute()
+            if not self.vector:
+                logger.warning("Vector service not available for search")
+                return []
 
-            return thoughts.data
+            results = self.vector.search(query, limit)
+            return results
 
         except Exception as e:
             logger.error(f"Thought search error: {str(e)}")
