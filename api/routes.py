@@ -62,10 +62,19 @@ except Exception as e:
 # Initialize other services
 try:
     logger.info("Initializing services...")
+    
+    # Initialize base services first
     storage_service = StorageService(vector_service)
-    sms_service = SMSService()
     audio_service = AudioService(openai_client)
     chat_service = ChatService(openai_client, storage_service)
+    
+    # Initialize SMS service last since it depends on the others
+    sms_service = SMSService(
+        chat_service=chat_service,
+        audio_service=audio_service,
+        storage_service=storage_service
+    )
+    
     logger.info("All services initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
