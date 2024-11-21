@@ -74,11 +74,11 @@ class SMSService:
             logger.info(f"Processing audio from {from_number}")
             
             # Process audio through audio service
-            transcription = self.audio.process_audio(media_url, content_type)
-            logger.info(f"Audio transcribed: {transcription}")
+            audio_transcribed = await self.audio.process_audio(media_url, content_type)
+            logger.info(f"Audio transcribed: {audio_transcribed}")
             
             # Store the transcription
-            self.storage.store_thought(from_number, transcription)
+            self.storage.store_thought(from_number, audio_transcribed)
             
             # Send confirmation
             response = "Got it! I've stored your thought."

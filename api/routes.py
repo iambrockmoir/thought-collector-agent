@@ -47,21 +47,32 @@ supabase = create_client(
 )
 logger.info("Supabase client initialized successfully")
 
-# Initialize Pinecone and Vector Service
+# Initialize Pinecone
+logger.info("Initializing Pinecone...")
 try:
-    logger.info("Initializing Pinecone...")
+    import pinecone
+    
     pinecone.init(
         api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT')
+        environment=os.getenv('PINECONE_ENVIRONMENT', 'us-west1-gcp')
     )
+    
     index_name = os.getenv('PINECONE_INDEX_NAME', 'thoughts')
-    pc = pinecone.Index(index_name)
+    if index_name not in pinecone.list_indexes():
+        pinecone.create_index(
+            name=index_name,
+            dimension=1536,  # OpenAI embedding dimension
+            metric='cosine'
+        )
+    
+    vector_service = VectorService(
+        openai_client=openai_client,
+        pinecone_index=pinecone.Index(index_name)
+    )
     logger.info("Pinecone initialized successfully")
-    vector_service = VectorService(openai_client, pc)
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
     vector_service = None
-    pc = None
 
 # Initialize other services
 try:
@@ -123,14 +134,6 @@ def status():
             'stats': None
         }
         
-        if pc:
-            try:
-                stats = pc.describe_index_stats()
-                status['pinecone'] = True
-                status['stats'] = stats
-            except Exception as e:
-                logger.error(f"Pinecone test failed: {str(e)}")
-        
         if vector_service:
             status['vector_service'] = True
             
@@ -145,8 +148,8 @@ def root():
     """Basic health check"""
     try:
         stats = None
-        if pc:
-            stats = pc.describe_index_stats()
+        if vector_service:
+            stats = vector_service.pinecone_index.describe_index_stats()
             # Convert stats to a serializable format
             stats = {
                 'dimension': stats.get('dimension'),

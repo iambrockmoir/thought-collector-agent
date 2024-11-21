@@ -10,12 +10,13 @@ logger = logging.getLogger(__name__)
 class StorageService:
     def __init__(self, supabase_client, vector_service=None):
         self.supabase = supabase_client
-        self.vector_service = vector_service
+        self.vector = vector_service
         self.messages_table = 'messages'
         self.thoughts_table = 'thoughts'
         logger.info(f"Storage service initialized with vector service: {bool(vector_service)}")
 
     async def store_chat_message(self, from_number: str, message: str, is_user: bool = True) -> None:
+        """Store a chat message in the database"""
         try:
             data = {
                 'phone_number': from_number,
