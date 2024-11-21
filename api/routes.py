@@ -70,11 +70,12 @@ except Exception as e:
     
 try:
     logger.info("Initializing services...")
+    # Initialize storage service with just supabase and vector service
+    storage_service = StorageService(supabase, vector_service)
     
-    # Initialize services in the correct order with proper arguments
-    storage_service = StorageService(supabase, vector_service)  # Remove openai_client
-    chat_service = ChatService(openai_client, storage_service, vector_service)
+    # Initialize other services
     audio_service = AudioService(openai_client)
+    chat_service = ChatService(openai_client, storage_service, vector_service)
     sms_service = SMSService(chat_service, audio_service, storage_service)
     
     logger.info("All services initialized successfully")

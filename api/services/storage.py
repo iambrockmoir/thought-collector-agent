@@ -6,6 +6,11 @@ logger = logging.getLogger(__name__)
 
 class StorageService:
     def __init__(self, supabase_client, vector_service=None):
+        """Initialize storage service
+        Args:
+            supabase_client: Initialized Supabase client
+            vector_service: Optional VectorService for embeddings
+        """
         self.supabase = supabase_client
         self.vector = vector_service
         logger.info(f"Storage service initialized with vector service: {vector_service is not None}")
@@ -16,6 +21,36 @@ class StorageService:
             logger.error("Vector service not initialized")
             return []
         return self.vector.generate_embedding(text)
+
+    def store_thought(self, phone_number: str, media_url: str, transcription: str) -> str:
+        """Store a thought in the database"""
+        try:
+            # Generate embedding
+            embedding = self._generate_embedding(transcription)
+            
+            # Store in Supabase
+            data = {
+                'user_phone': phone_number,
+                'media_url': media_url,
+                'transcription': transcription,
+                'embedding': embedding
+            }
+            result = self.supabase.table('thoughts').insert(data).execute()
+            
+            # Store in vector DB if we have embeddings
+            if embedding and self.vector:
+                thought_id = result.data[0]['id']
+                self.vector.store_vector(
+                    thought_id,
+                    embedding,
+                    {'user_phone': phone_number}
+                )
+            
+            return result.data[0]['id']
+            
+        except Exception as e:
+            logger.error(f"Failed to store thought: {str(e)}")
+            return None
 
     def store_chat_message(self, phone_number: str, message: str, response: str, thought_ids: List[str] = None):
         """Store chat message in database"""
@@ -31,43 +66,6 @@ class StorageService:
         except Exception as e:
             logger.error(f"Failed to store chat message: {str(e)}")
             return False
-
-    def store_thought(self, from_number: str, media_url: str = None, transcription: str = None) -> str:
-        """Store a thought in the database and vector store"""
-        try:
-            # Store in Supabase with correct column names
-            thought = {
-                'user_phone': from_number,      # Changed from 'from_number'
-                'audio_url': media_url,         # Changed from 'media_url'
-                'transcription': transcription,
-                'metadata': {}                  # Add empty metadata object
-            }
-            
-            response = self.db.table('thoughts').insert(thought).execute()
-            thought_id = response.data[0]['id']
-            logger.info(f"Stored thought with ID: {thought_id}")
-            
-            # Store vector embedding if available
-            if self.vector and transcription:
-                logger.info(f"Getting embedding for thought: {transcription[:50]}...")
-                embedding_response = self.openai.embeddings.create(
-                    model="text-embedding-ada-002",
-                    input=transcription
-                )
-                embedding = embedding_response.data[0].embedding
-                
-                self.vector.store_vector(
-                    thought_id,
-                    embedding,
-                    {'text': transcription}
-                )
-                logger.info("Vector stored successfully")
-            
-            return thought_id
-            
-        except Exception as e:
-            logger.error(f"Failed to store vector: {str(e)}", exc_info=True)
-            return None 
 
     async def store_chat_message(
         self, 
