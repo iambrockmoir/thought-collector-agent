@@ -12,14 +12,27 @@ class AudioService:
     def __init__(self, openai_client: OpenAI):
         self.client = openai_client
         self.converter_url = os.getenv('AUDIO_CONVERTER_URL', '')
+        # Get Twilio credentials
+        self.twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        self.twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
         logger.info(f"Audio service initialized with converter URL: {self.converter_url}")
 
     def process_audio_sync(self, audio_url: str, content_type: str) -> str:
         """Process audio file synchronously and return transcription"""
         try:
-            # Download AMR file from Twilio
+            # Download AMR file from Twilio with authentication
             logger.info(f"Downloading audio from {audio_url}")
-            amr_data = requests.get(audio_url).content
+            amr_response = requests.get(
+                audio_url,
+                auth=(self.twilio_account_sid, self.twilio_auth_token)
+            )
+            
+            if amr_response.status_code != 200:
+                logger.error(f"Failed to download audio from Twilio: {amr_response.status_code}")
+                return None
+                
+            amr_data = amr_response.content
+            logger.info(f"Downloaded {len(amr_data)} bytes of audio data")
             
             # Convert AMR to MP3 using conversion service
             logger.info(f"Converting AMR to MP3...")
