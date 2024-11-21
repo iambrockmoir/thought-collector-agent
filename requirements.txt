@@ -1,4 +1,4 @@
-flask[async]==3.0.0
+flask==2.3.3
 werkzeug==2.3.7
 python-dotenv==1.0.0
 twilio==8.5.0

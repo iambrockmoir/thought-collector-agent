@@ -7,7 +7,7 @@ from supabase import create_client
 from pinecone import Pinecone
 from datetime import datetime
 import asyncio
-from functools import partial
+from functools import partial, wraps
 from twilio.twiml.messaging_response import MessagingResponse
 from asgiref.sync import async_to_sync
 
@@ -89,8 +89,15 @@ sms_service = SMSService(
     storage_service=storage_service
 )
 
+def async_route(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return async_to_sync(f)(*args, **kwargs)
+    return wrapper
+
 @app.route("/webhook", methods=['POST'])
-def handle_webhook():
+@async_route
+async def handle_webhook():
     """Handle incoming SMS webhooks from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
@@ -102,12 +109,11 @@ def handle_webhook():
         
         logger.info(f"Received message from {from_number}")
         
-        # Use async_to_sync to handle the async SMS service
         if num_media > 0:
             logger.info("Processing media message...")
             media_url = request.form.get('MediaUrl0')
             content_type = request.form.get('MediaContentType0')
-            response = async_to_sync(sms_service.handle_incoming_message)(
+            response = await sms_service.handle_incoming_message(
                 from_number, 
                 body, 
                 media_url, 
@@ -115,7 +121,7 @@ def handle_webhook():
             )
         else:
             logger.info(f"Processing text message: {body}")
-            response = async_to_sync(sms_service.handle_incoming_message)(
+            response = await sms_service.handle_incoming_message(
                 from_number, 
                 body
             )
