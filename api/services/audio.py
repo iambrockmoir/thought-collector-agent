@@ -11,19 +11,36 @@ logger = logging.getLogger(__name__)
 class AudioService:
     def __init__(self, openai_client: OpenAI):
         self.client = openai_client
+        self.converter_url = os.getenv('AUDIO_CONVERTER_URL')
 
     def process_audio_sync(self, audio_url: str, content_type: str) -> str:
         """Process audio file synchronously and return transcription"""
         try:
-            # Download audio file
-            audio_data = requests.get(audio_url).content
+            # Download AMR file from Twilio
+            amr_data = requests.get(audio_url).content
             
-            # Save temporarily
+            # Convert AMR to MP3 using conversion service
+            logger.info("Converting AMR to MP3...")
+            files = {'audio': ('audio.amr', amr_data, 'audio/amr')}
+            conversion_response = requests.post(
+                f"{self.converter_url}/convert",
+                files=files
+            )
+            
+            if conversion_response.status_code != 200:
+                logger.error(f"Conversion failed: {conversion_response.text}")
+                return None
+                
+            # Get MP3 data from conversion service
+            mp3_data = conversion_response.content
+            
+            # Save MP3 temporarily
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
-                temp_file.write(audio_data)
+                temp_file.write(mp3_data)
                 temp_path = temp_file.name
 
-            # Transcribe
+            # Transcribe MP3
+            logger.info("Transcribing audio...")
             with open(temp_path, 'rb') as audio_file:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
