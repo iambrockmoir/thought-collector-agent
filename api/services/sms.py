@@ -25,7 +25,6 @@ class SMSService:
         try:
             if media_url and 'audio' in content_type:
                 logger.info(f"Processing audio from {from_number}")
-                # Process audio synchronously
                 transcription = self.audio.process_audio_sync(media_url, content_type)
                 
                 if transcription:
@@ -36,8 +35,9 @@ class SMSService:
                     response.message("✓ Thought recorded")
                     return str(response)
                 else:
+                    logger.error("Audio processing failed")
                     response = MessagingResponse()
-                    response.message("Sorry, I couldn't process that audio. Please try again.")
+                    response.message("Sorry, I couldn't process that audio. Please try again or contact support if the issue persists.")
                     return str(response)
             else:
                 return self.handle_text_message(from_number, body)
@@ -45,7 +45,7 @@ class SMSService:
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}", exc_info=True)
             response = MessagingResponse()
-            response.message("Sorry, I encountered an error. Please try again.")
+            response.message("Sorry, I encountered an error. Please try again or contact support if the issue persists.")
             return str(response)
 
     def handle_text_message(self, from_number: str, body: str):

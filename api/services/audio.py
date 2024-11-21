@@ -12,27 +12,37 @@ class AudioService:
     def __init__(self, openai_client: OpenAI):
         self.client = openai_client
         self.converter_url = os.getenv('AUDIO_CONVERTER_URL', '').rstrip('/')
+        logger.info(f"Audio service initialized with converter URL: {self.converter_url}")
 
     def process_audio_sync(self, audio_url: str, content_type: str) -> str:
         """Process audio file synchronously and return transcription"""
         try:
             # Download AMR file from Twilio
+            logger.info(f"Downloading audio from {audio_url}")
             amr_data = requests.get(audio_url).content
             
             # Convert AMR to MP3 using conversion service
-            logger.info("Converting AMR to MP3...")
+            logger.info(f"Converting AMR to MP3 using {self.converter_url}")
             files = {'audio': ('audio.amr', amr_data, 'audio/amr')}
+            
+            # Make the request to the conversion service
+            conversion_url = f"{self.converter_url}/convert"  # Remove double /convert
+            logger.info(f"Making conversion request to: {conversion_url}")
+            
             conversion_response = requests.post(
-                f"{self.converter_url}/convert",
-                files=files
+                conversion_url,
+                files=files,
+                timeout=30  # Add timeout
             )
             
             if conversion_response.status_code != 200:
-                logger.error(f"Conversion failed: {conversion_response.text}")
+                logger.error(f"Conversion failed with status {conversion_response.status_code}: {conversion_response.text}")
+                logger.error(f"Response headers: {conversion_response.headers}")
                 return None
                 
             # Get MP3 data from conversion service
             mp3_data = conversion_response.content
+            logger.info(f"Received converted MP3 data: {len(mp3_data)} bytes")
             
             # Save MP3 temporarily
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
