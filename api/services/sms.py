@@ -11,12 +11,13 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 class SMSService:
-    def __init__(self, twilio_client, storage_service, audio_service, chat_service):
-        self.twilio = twilio_client
-        self.storage = storage_service
+    def __init__(self, twilio_client, phone_number: str, audio_service=None, storage_service=None, chat_service=None):
+        self.client = twilio_client
+        self.phone_number = phone_number
         self.audio = audio_service
+        self.storage = storage_service
         self.chat = chat_service
-        self.twilio_number = os.getenv('TWILIO_PHONE_NUMBER')
+        logger.info(f"SMS service initialized with phone number: {phone_number}")
 
     async def handle_message(self, from_number: str, message: str, media_url: Optional[str] = None, content_type: Optional[str] = None) -> None:
         """Handle incoming SMS message"""
@@ -97,9 +98,9 @@ class SMSService:
         """Send SMS message"""
         try:
             logger.info(f"Sending SMS response: {message[:20]}...")
-            self.twilio.messages.create(
+            self.client.messages.create(
                 body=message,
-                from_=self.twilio_number,
+                from_=self.phone_number,
                 to=to_number
             )
         except Exception as e:
