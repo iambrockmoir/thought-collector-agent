@@ -11,10 +11,7 @@ logger = logging.getLogger(__name__)
 class AudioService:
     def __init__(self, openai_client: OpenAI):
         self.client = openai_client
-        base_url = os.getenv('AUDIO_CONVERTER_URL', '').rstrip('/')
-        if base_url.endswith('/convert'):
-            base_url = base_url[:-8]
-        self.converter_url = base_url
+        self.converter_url = os.getenv('AUDIO_CONVERTER_URL', '')
         logger.info(f"Audio service initialized with converter URL: {self.converter_url}")
 
     def process_audio_sync(self, audio_url: str, content_type: str) -> str:
@@ -28,12 +25,11 @@ class AudioService:
             logger.info(f"Converting AMR to MP3 using {self.converter_url}")
             files = {'audio': ('audio.amr', amr_data, 'audio/amr')}
             
-            # Make the request to the conversion service
-            conversion_url = f"{self.converter_url}/convert"
-            logger.info(f"Making conversion request to: {conversion_url}")
+            # Use the converter URL directly since it already includes /convert
+            logger.info(f"Making conversion request to: {self.converter_url}")
             
             conversion_response = requests.post(
-                conversion_url,
+                self.converter_url,
                 files=files,
                 timeout=30
             )
@@ -51,9 +47,10 @@ class AudioService:
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
                 temp_file.write(mp3_data)
                 temp_path = temp_file.name
+                logger.info(f"Saved MP3 to temporary file: {temp_path}")
 
             # Transcribe MP3
-            logger.info("Transcribing audio...")
+            logger.info("Transcribing audio with OpenAI Whisper...")
             with open(temp_path, 'rb') as audio_file:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
@@ -62,6 +59,7 @@ class AudioService:
 
             # Cleanup
             os.unlink(temp_path)
+            logger.info("Transcription complete and temp file cleaned up")
             
             return transcript.text
 
