@@ -22,12 +22,24 @@ class SMSService:
         """Handle incoming SMS message"""
         try:
             if media_url:
-                await self.handle_audio_message(from_number, media_url, content_type)
+                # Handle audio message
+                logger.info(f"Processing audio from {from_number}...")
+                transcription = await self.audio.process_audio(media_url, content_type)
+                await self.storage.store_chat_message(
+                    message=transcription,
+                    from_number=from_number
+                )
+                # ... rest of audio handling ...
             else:
-                await self.handle_text_message(from_number, message)
+                # Handle text message
+                logger.info(f"Processing text from {from_number}: {message}...")
+                response = await self.chat.process_message(
+                    message=message,
+                    user_phone=from_number
+                )
+                return response
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}")
-            await self.send_error_message(from_number)
             raise
 
     async def handle_text_message(self, from_number: str, message: str) -> None:

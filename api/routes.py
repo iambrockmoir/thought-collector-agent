@@ -69,10 +69,7 @@ try:
     index_name = os.getenv('PINECONE_INDEX')
     vector_service = VectorService(
         openai_client=openai_client,
-        pinecone_index=pinecone.Index(
-            index_name,
-            host=os.getenv('PINECONE_HOST')
-        )
+        pinecone_index=pinecone.Index(index_name)
     )
     logger.info("Pinecone initialized successfully")
 except Exception as e:

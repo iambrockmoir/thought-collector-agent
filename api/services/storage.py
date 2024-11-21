@@ -15,16 +15,35 @@ class StorageService:
         self.thoughts_table = 'thoughts'
         logger.info(f"Storage service initialized with vector service: {bool(vector_service)}")
 
-    async def store_chat_message(self, from_number: str, message: str, is_user: bool = True) -> None:
+    async def store_chat_message(self, message: str, from_number: str = None, response: str = None, related_thought_ids: List[str] = None) -> None:
         """Store a chat message in the database"""
         try:
             data = {
                 'phone_number': from_number,
                 'message': message,
-                'is_user': is_user,
+                'is_user': True,
                 'created_at': datetime.now().isoformat()
             }
+            
+            if response:
+                data['response'] = response
+                
+            if related_thought_ids:
+                data['related_thought_ids'] = related_thought_ids
+                
             self.supabase.table(self.messages_table).insert(data).execute()
+            
+            # If there's a response, store it as a separate message
+            if response:
+                response_data = {
+                    'phone_number': from_number,
+                    'message': response,
+                    'is_user': False,
+                    'created_at': datetime.now().isoformat(),
+                    'related_thought_ids': related_thought_ids
+                }
+                self.supabase.table(self.messages_table).insert(response_data).execute()
+                
         except Exception as e:
             logger.error(f"Failed to store chat message: {str(e)}")
             raise

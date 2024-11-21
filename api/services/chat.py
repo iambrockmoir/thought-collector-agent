@@ -11,7 +11,7 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
-    async def process_message(self, user_phone: str, message: str) -> str:
+    async def process_message(self, message: str, user_phone: str) -> str:
         """Process a chat message and return a response"""
         try:
             # Search for relevant thoughts
@@ -25,13 +25,7 @@ class ChatService:
             thought_ids = [t.id for t in relevant_thoughts if hasattr(t, 'id')]
             
             # Format thoughts for context
-            thought_context = ""
-            if relevant_thoughts:
-                thought_context = "Here are some relevant thoughts I found:\n"
-                for i, thought in enumerate(relevant_thoughts, 1):
-                    thought_context += f"{i}. {thought.metadata.get('transcription', 'No transcription available')}\n"
-            else:
-                thought_context = "I couldn't find any relevant thoughts in your history."
+            thought_context = self._format_thought_context(relevant_thoughts)
 
             # Generate response using ChatGPT
             messages = [
@@ -47,10 +41,10 @@ class ChatService:
             
             reply = response.choices[0].message.content
 
-            # Store the chat interaction with related thought IDs
+            # Store the chat interaction
             await self.storage.store_chat_message(
-                user_phone=user_phone,
                 message=message,
+                from_number=user_phone,
                 response=reply,
                 related_thought_ids=thought_ids
             )
