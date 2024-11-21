@@ -46,7 +46,7 @@ class ChatService:
             
             ai_response = response.choices[0].message.content
             
-            # Store the interaction
+            # Store the interaction synchronously
             if self.storage:
                 self.storage.store_chat_message(
                     phone_number, 
@@ -55,10 +55,6 @@ class ChatService:
                     [t['id'] for t in relevant_thoughts]
                 )
             
-            # Ensure response isn't too long for SMS
-            if len(ai_response) > 1500:
-                ai_response = ai_response[:1497] + "..."
-            
             return ai_response
             
         except Exception as e:
@@ -66,13 +62,12 @@ class ChatService:
             return "Sorry, I encountered an error. Please try again."
 
     def _format_thought_context(self, thoughts: List[Dict]) -> str:
-        """Format thoughts into a context string"""
+        """Format thoughts into a string for context"""
         if not thoughts:
-            return "No relevant previous thoughts found."
-            
-        context_parts = []
+            return "No relevant thoughts found."
+        
+        context = []
         for thought in thoughts:
-            timestamp = thought.get('created_at', '').split('T')[0]  # Get just the date
-            context_parts.append(f"On {timestamp}, you said: {thought['transcription']}")
-            
-        return "\n\n".join(context_parts)
+            context.append(f"- {thought['transcription']}")
+        
+        return "\n".join(context)
