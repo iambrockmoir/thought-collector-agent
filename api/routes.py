@@ -50,11 +50,8 @@ logger.info("Supabase client initialized successfully")
 # Initialize Pinecone and Vector Service
 try:
     logger.info("Initializing Pinecone...")
-    pinecone.init(
-        api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENV')
-    )
-    index = pinecone.Index(os.getenv('PINECONE_INDEX'))
+    pc = pinecone.Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
+    index = pc.Index(os.getenv('PINECONE_INDEX'))
     logger.info(f"Pinecone initialized. Index stats: {index.describe_index_stats()}")
     vector_service = VectorService(openai_client, index)
 except Exception as e:
