@@ -5,6 +5,5 @@ python-dotenv==1.0.0
 supabase==1.0.3
 twilio==8.5.0
 requests==2.31.0
-postgrest==0.13.0
 gotrue==1.1.1
 websockets==11.0.3
