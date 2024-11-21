@@ -2,6 +2,8 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import os
+from supabase import create_client
+from api.services.vector import VectorService
 
 logger = logging.getLogger(__name__)
 
