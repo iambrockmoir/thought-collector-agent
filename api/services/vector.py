@@ -1,6 +1,6 @@
+from openai import OpenAI
 import logging
-from typing import Optional, Dict, Any, List
-from datetime import datetime
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -36,20 +36,4 @@ class VectorService:
             return True
         except Exception as e:
             logger.error(f"Failed to store vector: {str(e)}")
-            return False
-
-    def query_vectors(self, 
-                     query_embedding: list[float], 
-                     top_k: int = 5) -> list[Dict[str, Any]]:
-        """Query similar vectors from Pinecone"""
-        try:
-            results = self.index.query(
-                vector=query_embedding,
-                top_k=top_k,
-                include_metadata=True
-            )
-            return results.matches
-            
-        except Exception as e:
-            logger.error(f"Failed to query vectors: {str(e)}")
-            return [] 
+            return False 
