@@ -15,6 +15,10 @@ class SMSService:
         self.chat = chat_service
         self.audio = audio_service
         self.storage = storage_service
+        self.twilio_client = Client(
+            os.getenv('TWILIO_ACCOUNT_SID'),
+            os.getenv('TWILIO_AUTH_TOKEN')
+        )
 
     async def handle_text_message(self, from_number: str, body: str):
         """Handle incoming text message"""
@@ -64,7 +68,7 @@ class SMSService:
 
     def _send_message(self, to: str, body: str):
         """Helper to send Twilio message"""
-        return self.client.messages.create(
+        return self.twilio_client.messages.create(
             to=to,
             from_=os.getenv('TWILIO_PHONE_NUMBER'),
             body=body

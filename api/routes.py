@@ -83,9 +83,8 @@ except Exception as e:
     raise
 
 sms_service = SMSService(
-    twilio_auth=(twilio_account_sid, twilio_auth_token),
-    audio_service=audio_service,
     chat_service=chat_service,
+    audio_service=audio_service,
     storage_service=storage_service
 )
 
