@@ -1,56 +1,45 @@
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import os
 
 logger = logging.getLogger(__name__)
 
 class StorageService:
-    def __init__(self, supabase_client, vector_service=None):
-        """Initialize storage service
-        Args:
-            supabase_client: Initialized Supabase client
-            vector_service: Optional VectorService for embeddings
-        """
-        self.supabase = supabase_client
+    def __init__(self, vector_service):
         self.vector = vector_service
+        self.supabase = create_client(
+            os.getenv('SUPABASE_URL'),
+            os.getenv('SUPABASE_KEY')
+        )
         logger.info(f"Storage service initialized with vector service: {vector_service is not None}")
 
-    def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding using vector service"""
-        if not self.vector:
-            logger.error("Vector service not initialized")
-            return []
-        return self.vector.generate_embedding(text)
-
-    def store_thought(self, phone_number: str, media_url: str, transcription: str) -> str:
-        """Store a thought in the database"""
+    def store_thought(self, user_phone: str, audio_url: str, transcription: str, metadata: dict = None) -> bool:
+        """Store a thought in Supabase and its embedding in Pinecone"""
         try:
-            # Generate embedding
-            embedding = self._generate_embedding(transcription)
-            
-            # Store in Supabase
-            data = {
-                'user_phone': phone_number,
-                'media_url': media_url,
+            # Store metadata in Supabase
+            thought_data = {
+                'user_phone': user_phone,
+                'audio_url': audio_url,
                 'transcription': transcription,
-                'embedding': embedding
+                'metadata': metadata or {}
             }
-            result = self.supabase.table('thoughts').insert(data).execute()
             
-            # Store in vector DB if we have embeddings
-            if embedding and self.vector:
-                thought_id = result.data[0]['id']
-                self.vector.store_vector(
-                    thought_id,
-                    embedding,
-                    {'user_phone': phone_number}
-                )
+            response = self.supabase.table('thoughts').insert(thought_data).execute()
             
-            return result.data[0]['id']
-            
+            if hasattr(response, 'error') and response.error is not None:
+                logger.error(f"Failed to store thought in Supabase: {response.error}")
+                return False
+
+            # Store embedding in Pinecone if vector service is available
+            if self.vector and transcription:
+                self.vector.store_embedding(transcription, metadata={'user_phone': user_phone})
+
+            return True
+
         except Exception as e:
             logger.error(f"Failed to store thought: {str(e)}")
-            return None
+            return False
 
     def store_chat_message(self, phone_number: str, message: str, response: str, thought_ids: List[str] = None):
         """Store chat message in database"""
