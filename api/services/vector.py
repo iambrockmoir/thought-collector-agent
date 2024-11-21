@@ -12,10 +12,7 @@ class VectorService:
             api_key=api_key,
             environment=environment,
         )
-        self.index = pinecone.Index(
-            index_name,
-            host=host
-        )
+        self.index = pinecone.Index(index_name)
         logger.info("VectorService initialized with Pinecone index")
         if self.index:
             stats = self.index.describe_index_stats()

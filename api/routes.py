@@ -52,14 +52,15 @@ twilio_client = Client(
 logger.info("Twilio client initialized successfully")
 
 # Initialize Pinecone
-logger.info("Initializing Pinecone...")
 try:
+    logger.info("Initializing Pinecone...")
     vector_service = VectorService(
         api_key=settings.pinecone_api_key,
         environment=settings.pinecone_environment,
         index_name=settings.pinecone_index,
         host=settings.pinecone_host
     )
+    logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
     vector_service = None
