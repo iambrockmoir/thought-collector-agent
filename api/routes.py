@@ -16,6 +16,7 @@ from .services.chat import ChatService
 from .services.sms import SMSService
 from .services.storage import StorageService
 from .services.vector import VectorService
+from api import settings
 
 # Configure detailed logging
 logging.basicConfig(
@@ -31,28 +32,22 @@ logger = logging.getLogger(__name__)
 # Initialize Flask
 app = Flask(__name__)
 
-# Get environment variables
-openai_key = os.getenv('OPENAI_API_KEY')
-twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-audio_converter_url = os.getenv('AUDIO_CONVERTER_URL')
-
 # Initialize clients
 logger.info("Initializing OpenAI client...")
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+openai_client = OpenAI(api_key=settings.openai_api_key)
 logger.info("OpenAI client initialized successfully")
 
 logger.info("Initializing Supabase client...")
 supabase_client = create_client(
-    os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_KEY')
+    settings.supabase_url,
+    settings.supabase_key
 )
 logger.info("Supabase client initialized successfully")
 
 logger.info("Initializing Twilio client...")
 twilio_client = Client(
-    os.getenv('TWILIO_ACCOUNT_SID'),
-    os.getenv('TWILIO_AUTH_TOKEN')
+    settings.twilio_account_sid,
+    settings.twilio_auth_token
 )
 logger.info("Twilio client initialized successfully")
 
@@ -63,12 +58,12 @@ try:
     
     # Initialize Pinecone with environment
     pinecone.init(
-        api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT')
+        api_key=settings.pinecone_api_key,
+        environment=settings.pinecone_environment
     )
     
     # Create index without host parameter
-    index = pinecone.Index(os.getenv('PINECONE_INDEX'))
+    index = pinecone.Index(settings.pinecone_index)
     
     vector_service = VectorService(
         openai_client=openai_client,
@@ -89,7 +84,7 @@ try:
     
     audio_service = AudioService(
         openai_client=openai_client,
-        converter_url=os.getenv('AUDIO_CONVERTER_URL')
+        converter_url=settings.audio_converter_url
     )
     
     chat_service = ChatService(
