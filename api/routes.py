@@ -63,14 +63,16 @@ try:
     
     pinecone.init(
         api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT'),
-        host=os.getenv('PINECONE_HOST')
+        environment=os.getenv('PINECONE_ENVIRONMENT')
     )
     
     index_name = os.getenv('PINECONE_INDEX')
     vector_service = VectorService(
         openai_client=openai_client,
-        pinecone_index=pinecone.Index(index_name)
+        pinecone_index=pinecone.Index(
+            index_name,
+            host=os.getenv('PINECONE_HOST')
+        )
     )
     logger.info("Pinecone initialized successfully")
 except Exception as e:
@@ -107,7 +109,7 @@ except Exception as e:
     raise e
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     """Handle incoming SMS webhook from Twilio"""
     try:
         logger.info("Received webhook from Twilio")
@@ -119,15 +121,23 @@ async def webhook():
         
         logger.info(f"Received message from {from_number}")
         
+        # Create event loop for async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         # Handle media or text
         if num_media > 0:
             logger.info("Processing media message...")
             media_url = request.form.get('MediaUrl0')
             content_type = request.form.get('MediaContentType0')
-            await sms_service.handle_message(from_number, message, media_url, content_type)
+            loop.run_until_complete(
+                sms_service.handle_message(from_number, message, media_url, content_type)
+            )
         else:
             logger.info(f"Processing text message: {message}")
-            await sms_service.handle_message(from_number, message)
+            loop.run_until_complete(
+                sms_service.handle_message(from_number, message)
+            )
             
         logger.info("Successfully processed message")
         return 'OK', 200
