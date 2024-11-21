@@ -2,21 +2,15 @@ from openai import OpenAI
 import logging
 from typing import List, Dict
 import uuid
-import pinecone
+from pinecone import Pinecone
 
 logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self, api_key: str, environment: str, index_name: str, host: str):
-        pinecone.init(
-            api_key=api_key,
-            environment=environment,
-        )
-        self.index = pinecone.Index(index_name)
+        self.pc = Pinecone(api_key=api_key)
+        self.index = self.pc.Index(index_name)
         logger.info("VectorService initialized with Pinecone index")
-        if self.index:
-            stats = self.index.describe_index_stats()
-            logger.info(f"Pinecone index stats: {stats}")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
@@ -75,3 +69,11 @@ class VectorService:
         except Exception as e:
             logger.error(f"Search error: {str(e)}")
             return []
+
+    def upsert(self, vectors, metadata=None):
+        try:
+            self.index.upsert(vectors=vectors, metadata=metadata)
+            return True
+        except Exception as e:
+            logger.error(f"Error upserting vectors: {str(e)}")
+            return False
