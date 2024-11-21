@@ -9,78 +9,14 @@ import requests
 logger = logging.getLogger(__name__)
 
 class AudioService:
-    def __init__(self, openai_client: OpenAI):
-        self.client = openai_client
-        self.converter_url = os.getenv('AUDIO_CONVERTER_URL', '')
-        # Get Twilio credentials
-        self.twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-        self.twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        logger.info(f"Audio service initialized with converter URL: {self.converter_url}")
+    def __init__(self, converter_url: str):
+        self.converter_url = converter_url
+        logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
-    def process_audio_sync(self, audio_url: str, content_type: str) -> str:
-        """Process audio file synchronously and return transcription"""
+    async def process_audio(self, media_url: str, content_type: str = None) -> str:
+        """Process audio file and return transcription"""
         try:
-            # Download AMR file from Twilio with authentication
-            logger.info(f"Downloading audio from {audio_url}")
-            amr_response = requests.get(
-                audio_url,
-                auth=(self.twilio_account_sid, self.twilio_auth_token)
-            )
-            
-            if amr_response.status_code != 200:
-                logger.error(f"Failed to download audio from Twilio: {amr_response.status_code}")
-                return None
-                
-            amr_data = amr_response.content
-            logger.info(f"Downloaded {len(amr_data)} bytes of audio data")
-            
-            # Convert AMR to MP3 using conversion service
-            logger.info(f"Converting AMR to MP3...")
-            files = {'audio': ('audio.amr', amr_data, 'audio/amr')}
-            
-            logger.info(f"Making conversion request to: {self.converter_url}")
-            conversion_response = requests.post(
-                self.converter_url,
-                files=files,
-                timeout=30
-            )
-            
-            if conversion_response.status_code != 200:
-                logger.error(f"Conversion failed with status {conversion_response.status_code}: {conversion_response.text}")
-                logger.error(f"Response headers: {conversion_response.headers}")
-                return None
-                
-            # Get MP3 data from conversion service
-            mp3_data = conversion_response.content
-            logger.info(f"Received converted MP3 data: {len(mp3_data)} bytes")
-            
-            # Save MP3 temporarily
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
-                temp_file.write(mp3_data)
-                temp_path = temp_file.name
-
-            # Transcribe MP3
-            logger.info("Transcribing audio with OpenAI Whisper...")
-            with open(temp_path, 'rb') as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file
-                )
-
-            # Cleanup
-            os.unlink(temp_path)
-            logger.info("Transcription complete")
-            
-            return transcript.text
-
-        except Exception as e:
-            logger.error(f"Failed to process audio: {str(e)}", exc_info=True)
-            return None
-
-    async def process_audio(self, audio_url: str, content_type: str) -> Optional[str]:
-        """Process audio and return transcription"""
-        try:
-            logger.info(f"Starting audio processing for {audio_url}")
+            logger.info(f"Starting audio processing for {media_url}")
             logger.info(f"Content type: {content_type}")
             
             # Download audio file with Twilio credentials
@@ -91,7 +27,7 @@ class AudioService:
             )
             
             async with aiohttp.ClientSession(auth=auth) as session:
-                async with session.get(audio_url) as response:
+                async with session.get(media_url) as response:
                     if response.status != 200:
                         logger.error(f"Failed to download audio: {response.status}")
                         logger.error(await response.text())

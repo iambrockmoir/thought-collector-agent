@@ -63,10 +63,11 @@ try:
     
     pinecone.init(
         api_key=os.getenv('PINECONE_API_KEY'),
-        environment=os.getenv('PINECONE_ENVIRONMENT', 'gcp-starter')  # Updated default
+        environment=os.getenv('PINECONE_ENVIRONMENT'),
+        host=os.getenv('PINECONE_HOST')
     )
     
-    index_name = os.getenv('PINECONE_INDEX_NAME', 'thoughts')
+    index_name = os.getenv('PINECONE_INDEX')
     vector_service = VectorService(
         openai_client=openai_client,
         pinecone_index=pinecone.Index(index_name)
@@ -94,9 +95,10 @@ try:
     )
     
     sms_service = SMSService(
-        chat_service=chat_service,
+        twilio_client=twilio_client,
+        storage_service=storage_service,
         audio_service=audio_service,
-        storage_service=storage_service
+        chat_service=chat_service
     )
     
     logger.info("All services initialized successfully")
