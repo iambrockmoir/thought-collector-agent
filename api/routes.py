@@ -70,23 +70,17 @@ except Exception as e:
     
 try:
     logger.info("Initializing services...")
-    storage_service = StorageService(supabase, vector_service, openai_client)
-    audio_service = AudioService(openai_client, audio_converter_url)
-    chat_service = ChatService(
-        openai_client=openai_client,
-        storage_service=storage_service,
-        vector_service=vector_service
-    )
+    
+    # Initialize services in the correct order with proper arguments
+    storage_service = StorageService(supabase, vector_service)  # Remove openai_client
+    chat_service = ChatService(openai_client, storage_service, vector_service)
+    audio_service = AudioService(openai_client)
+    sms_service = SMSService(chat_service, audio_service, storage_service)
+    
     logger.info("All services initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}", exc_info=True)
-    raise
-
-sms_service = SMSService(
-    chat_service=chat_service,
-    audio_service=audio_service,
-    storage_service=storage_service
-)
+    raise e
 
 @app.route("/webhook", methods=['POST'])
 def handle_webhook():
