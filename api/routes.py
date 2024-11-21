@@ -4,7 +4,7 @@ import sys
 import os
 from openai import OpenAI
 from supabase import create_client
-from pinecone import Pinecone
+import pinecone
 from datetime import datetime
 import asyncio
 from functools import partial, wraps
@@ -47,7 +47,7 @@ supabase = create_client(
 )
 logger.info("Supabase client initialized successfully")
 
-# Initialize Pinecone
+# Initialize Pinecone and Vector Service
 try:
     logger.info("Initializing Pinecone...")
     pinecone.init(
@@ -56,24 +56,19 @@ try:
     )
     index = pinecone.Index(os.getenv('PINECONE_INDEX'))
     logger.info(f"Pinecone initialized. Index stats: {index.describe_index_stats()}")
-    
-    # Pass both openai_client and index to VectorService
     vector_service = VectorService(openai_client, index)
-    
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}", exc_info=True)
     vector_service = None
-    
+    index = None
+
+# Initialize other services
 try:
     logger.info("Initializing services...")
-    # Initialize storage service with just supabase and vector service
     storage_service = StorageService(supabase, vector_service)
-    
-    # Initialize other services
     audio_service = AudioService(openai_client)
     chat_service = ChatService(openai_client, storage_service, vector_service)
     sms_service = SMSService(chat_service, audio_service, storage_service)
-    
     logger.info("All services initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}", exc_info=True)
