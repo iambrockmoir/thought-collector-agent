@@ -20,13 +20,13 @@ class SMSService:
             os.getenv('TWILIO_AUTH_TOKEN')
         )
 
-    async def handle_text_message(self, from_number: str, body: str) -> str:
+    def handle_text_message(self, from_number: str, body: str) -> str:
         """Handle incoming text message"""
         try:
             logger.info(f"Processing text from {from_number}: {body[:50]}...")
             
-            # Process message through chat service
-            chat_response = await self.chat.process_message(from_number, body)
+            # Process message through chat service synchronously
+            chat_response = asyncio.run(self.chat.process_message(from_number, body))
             
             logger.info(f"Sending SMS response: {chat_response[:50]}...")
             self._send_sms(from_number, chat_response)
@@ -37,13 +37,13 @@ class SMSService:
             self._send_sms(from_number, "Sorry, I encountered an error. Please try again.")
             return str(e)
 
-    async def process_message(self, from_number: str, body: str = None, media_url: str = None) -> str:
+    def process_message(self, from_number: str, body: str = None, media_url: str = None) -> str:
         """Process incoming SMS message"""
         try:
             if media_url:
-                return await self.handle_audio_message(from_number, media_url)
+                return self.handle_audio_message(from_number, media_url)
             else:
-                return await self.handle_text_message(from_number, body)
+                return self.handle_text_message(from_number, body)
         except Exception as e:
             logger.error(f"Failed to process message: {str(e)}")
             return str(e)
