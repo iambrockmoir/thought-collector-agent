@@ -14,15 +14,15 @@ class ChatService:
     async def process_message(self, message: str, user_phone: str) -> str:
         """Process a chat message and return a response"""
         try:
-            # Search for relevant thoughts
+            # Search for relevant thoughts (will be empty if vector service is unavailable)
             relevant_thoughts = self.storage.search_thoughts(
                 query=message,
                 user_phone=user_phone,
                 limit=5
             )
             
-            # Get thought IDs for storage
-            thought_ids = [t.id for t in relevant_thoughts if hasattr(t, 'id')]
+            # Get thought IDs for storage (if any)
+            thought_ids = [t.id for t in relevant_thoughts if hasattr(t, 'id')] if relevant_thoughts else []
             
             # Format thoughts for context
             thought_context = self._format_thought_context(relevant_thoughts)
@@ -46,7 +46,7 @@ class ChatService:
                 message=message,
                 from_number=user_phone,
                 response=reply,
-                related_thought_ids=thought_ids
+                related_thought_ids=thought_ids if thought_ids else None
             )
             
             return reply

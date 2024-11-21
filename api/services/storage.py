@@ -31,7 +31,9 @@ class StorageService:
             if related_thought_ids:
                 data['related_thought_ids'] = related_thought_ids
                 
-            self.supabase.table(self.messages_table).insert(data).execute()
+            result = self.supabase.table(self.messages_table).insert(data).execute()
+            if hasattr(result, 'error') and result.error:
+                raise Exception(f"Supabase error: {result.error}")
             
             # If there's a response, store it as a separate message
             if response:
@@ -42,7 +44,9 @@ class StorageService:
                     'created_at': datetime.now().isoformat(),
                     'related_thought_ids': related_thought_ids
                 }
-                self.supabase.table(self.messages_table).insert(response_data).execute()
+                result = self.supabase.table(self.messages_table).insert(response_data).execute()
+                if hasattr(result, 'error') and result.error:
+                    raise Exception(f"Supabase error storing response: {result.error}")
                 
         except Exception as e:
             logger.error(f"Failed to store chat message: {str(e)}")
@@ -67,21 +71,21 @@ class StorageService:
         try:
             if not self.vector:
                 logger.warning("Vector service not available for search")
-                return []
+                return []  # Return empty list instead of failing
 
             # Get vector search results
             results = self.vector.search(query, limit)
             
             # If user_phone is provided, filter results for that user
-            if user_phone:
+            if user_phone and results:
                 filtered_results = [
                     r for r in results 
-                    if r.metadata.get('user_phone') == user_phone
+                    if r.metadata and r.metadata.get('user_phone') == user_phone
                 ]
                 return filtered_results
             
-            return results
+            return results or []  # Ensure we always return a list
 
         except Exception as e:
             logger.error(f"Thought search error: {str(e)}")
-            return []
+            return []  # Return empty list on error
