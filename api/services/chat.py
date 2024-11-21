@@ -17,9 +17,12 @@ class ChatService:
             # Search for relevant thoughts
             relevant_thoughts = self.storage.search_thoughts(
                 query=message,
-                user_phone=user_phone,  # Pass user_phone to filter results
+                user_phone=user_phone,
                 limit=5
             )
+            
+            # Get thought IDs for storage
+            thought_ids = [t.id for t in relevant_thoughts if hasattr(t, 'id')]
             
             # Format thoughts for context
             thought_context = ""
@@ -44,8 +47,13 @@ class ChatService:
             
             reply = response.choices[0].message.content
 
-            # Store the chat interaction
-            await self.storage.store_chat_message(user_phone, message, reply)
+            # Store the chat interaction with related thought IDs
+            await self.storage.store_chat_message(
+                user_phone=user_phone,
+                message=message,
+                response=reply,
+                related_thought_ids=thought_ids
+            )
             
             return reply
 

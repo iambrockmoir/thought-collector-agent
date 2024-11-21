@@ -20,6 +20,17 @@ class SMSService:
             os.getenv('TWILIO_AUTH_TOKEN')
         )
 
+    def _send_sms(self, to_number: str, message: str):
+        """Send SMS using Twilio"""
+        try:
+            self.client.messages.create(
+                body=message,
+                from_=os.getenv('TWILIO_PHONE_NUMBER'),
+                to=to_number
+            )
+        except Exception as e:
+            logger.error(f"Failed to send SMS: {str(e)}")
+
     def handle_text_message(self, from_number: str, body: str) -> str:
         """Handle incoming text message"""
         try:
@@ -34,7 +45,8 @@ class SMSService:
             
         except Exception as e:
             logger.error(f"Failed to handle text message: {str(e)}")
-            self._send_sms(from_number, "Sorry, I encountered an error. Please try again.")
+            error_msg = "Sorry, I encountered an error. Please try again."
+            self._send_sms(from_number, error_msg)
             return str(e)
 
     def process_message(self, from_number: str, body: str = None, media_url: str = None) -> str:
