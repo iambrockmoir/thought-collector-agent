@@ -72,17 +72,36 @@ class VectorService:
             logger.error(f"Failed to get embedding: {str(e)}")
             raise
 
-    def search(self, vector: List[float], top_k: int = 5) -> List[Dict]:
+    async def search(self, query: str, limit: int = 5) -> List[Dict]:
         try:
+            # First get embeddings for the query text
+            embedding = await self.get_embedding(query)
+            
+            # Then search using the embedding vector
             results = self.pinecone_index.query(
-                vector=vector,
-                top_k=top_k,
+                vector=embedding,
+                top_k=limit,
                 include_metadata=True
             )
-            return results.matches
+            
+            logger.info(f"Found {len(results.matches)} matching thoughts")
+            return [match.metadata for match in results.matches]
+            
         except Exception as e:
             logger.error(f"Error searching vectors: {str(e)}")
-            raise e
+            raise
+
+    async def get_embedding(self, text: str) -> List[float]:
+        """Get embeddings for a text string using OpenAI"""
+        try:
+            response = await openai.embeddings.create(
+                model="text-embedding-ada-002",
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"Error getting embedding: {str(e)}")
+            raise
 
     def upsert(self, vectors, metadata=None):
         try:
