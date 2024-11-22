@@ -12,11 +12,11 @@ class VectorService:
         try:
             logger.info(f"Initializing Pinecone for index: {index_name}")
             
-            # Initialize Pinecone with the new syntax
+            # Initialize with new API
             pc = Pinecone(api_key=api_key)
             logger.info("Pinecone core initialized successfully")
             
-            # Get the index
+            # Get index using new API
             logger.info(f"Connecting to index: {index_name}")
             self.pinecone_index = pc.Index(index_name)
             
@@ -34,8 +34,6 @@ class VectorService:
             logger.error(f"Index Name: {index_name}")
             logger.error(f"Host: {host}")
             raise e
-
-        logger.info(f"Using Pinecone SDK version: {Pinecone.__version__}")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""

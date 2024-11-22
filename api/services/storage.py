@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 class StorageService:
     def __init__(self, supabase_client, vector_service=None):
         self.supabase = supabase_client
-        self.vector = vector_service
+        self.vector_service = vector_service
+        if vector_service is None:
+            logger.warning("Vector service not provided to storage service")
+        else:
+            logger.info("Vector service successfully connected to storage service")
         self.messages_table = 'chat_history'
         self.thoughts_table = 'thoughts'
         logger.info(f"Storage service initialized with vector service: {bool(vector_service)}")
@@ -74,12 +78,12 @@ class StorageService:
     def search_thoughts(self, query: str, user_phone: str = None, limit: int = 5) -> List[dict]:
         """Search for similar thoughts using vector similarity"""
         try:
-            if not self.vector:
-                logger.warning("Vector service not available for search")
-                return []  # Return empty list instead of failing
+            if self.vector_service is None:
+                logger.warning("Vector service not available for search - service was not initialized")
+                return []
 
             # Get vector search results
-            results = self.vector.search(query, limit)
+            results = self.vector_service.search(query, limit)
             
             # If user_phone is provided, filter results for that user
             if user_phone and results:
