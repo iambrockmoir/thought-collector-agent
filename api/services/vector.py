@@ -2,7 +2,7 @@ from openai import OpenAI
 import logging
 from typing import List, Dict
 import uuid
-import pinecone
+from pinecone import Pinecone
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -12,15 +12,13 @@ class VectorService:
         try:
             logger.info(f"Initializing Pinecone for index: {index_name}")
             
-            # Initialize Pinecone with just the API key
-            pinecone.init(
-                api_key=api_key
-            )
+            # Initialize Pinecone with the new syntax
+            pc = Pinecone(api_key=api_key)
             logger.info("Pinecone core initialized successfully")
             
-            # Just pass the index name directly
+            # Get the index
             logger.info(f"Connecting to index: {index_name}")
-            self.pinecone_index = pinecone.Index(index_name)
+            self.pinecone_index = pc.Index(index_name)
             
             # Verify connection
             try:
@@ -37,7 +35,7 @@ class VectorService:
             logger.error(f"Host: {host}")
             raise e
 
-        logger.info(f"Using Pinecone SDK version: {pinecone.__version__}")
+        logger.info(f"Using Pinecone SDK version: {Pinecone.__version__}")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
