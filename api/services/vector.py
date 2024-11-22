@@ -77,8 +77,8 @@ class VectorService:
 
     async def search(self, query: str, limit: int = 5) -> List[Dict]:
         try:
-            # First get embeddings for the query text
-            embedding = await self.get_embedding(query)
+            # Get embeddings (no await needed)
+            embedding = self.get_embedding(query)
             
             # Then search using the embedding vector
             results = self.pinecone_index.query(
@@ -86,10 +86,7 @@ class VectorService:
                 top_k=limit,
                 include_metadata=True
             )
-            
-            logger.info(f"Found {len(results.matches)} matching thoughts")
-            return [match.metadata for match in results.matches]
-            
+            return results.matches
         except Exception as e:
             logger.error(f"Error searching vectors: {str(e)}")
             raise
@@ -97,7 +94,8 @@ class VectorService:
     async def get_embedding(self, text: str) -> List[float]:
         """Get embeddings for a text string using OpenAI"""
         try:
-            response = await self.openai_client.embeddings.create(
+            # No need to await - create() returns response directly
+            response = self.openai_client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
             )
