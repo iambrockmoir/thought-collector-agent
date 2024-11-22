@@ -8,23 +8,34 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 class VectorService:
-    def __init__(self, api_key: str, environment: str, index_name: str, host: str):
-        # Extract the domain from the host URL
-        parsed_url = urlparse(host)
-        domain = parsed_url.netloc.split('.')[0]  # Get the first part of the domain
-        
-        # Initialize Pinecone with the correct environment
-        pinecone.init(
-            api_key=api_key,
-            environment=environment
-        )
-        
+    def __init__(self, api_key: str, environment: str, index_name: str, host: str = None):
         try:
-            # Connect to index
-            self.index = pinecone.Index(
-                name=index_name
+            # Initialize Pinecone
+            pinecone.init(
+                api_key=api_key,
+                environment=environment
             )
-            logger.info(f"VectorService initialized with Pinecone index: {index_name}")
+            
+            # Get or create index
+            if index_name not in pinecone.list_indexes():
+                pinecone.create_index(
+                    name=index_name,
+                    dimension=1536,  # OpenAI embeddings dimension
+                    metric='cosine'
+                )
+                logger.info(f"Created new Pinecone index: {index_name}")
+            
+            # Connect to index - Updated for new Pinecone SDK
+            if host:
+                self.pinecone_index = pinecone.Index(
+                    host=host
+                )
+            else:
+                self.pinecone_index = pinecone.Index(
+                    host=f"https://{index_name}-{environment}.svc.{environment}.pinecone.io"
+                )
+            logger.info(f"Connected to Pinecone index: {index_name}")
+            
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone index: {str(e)}")
             raise e
@@ -32,7 +43,7 @@ class VectorService:
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
         try:
-            if not self.index:
+            if not self.pinecone_index:
                 logger.warning("Vector service not available for storage")
                 return False
 
@@ -40,7 +51,7 @@ class VectorService:
             embedding = self._get_embedding(text)
             
             # Store in Pinecone
-            self.index.upsert(
+            self.pinecone_index.upsert(
                 vectors=[{
                     'id': str(uuid.uuid4()),
                     'values': embedding,
@@ -66,21 +77,21 @@ class VectorService:
             logger.error(f"Failed to get embedding: {str(e)}")
             raise
 
-    def search(self, query_vector, top_k=5):
+    def search(self, vector: List[float], top_k: int = 5) -> List[Dict]:
         try:
-            results = self.index.query(
-                vector=query_vector,
+            results = self.pinecone_index.query(
+                vector=vector,
                 top_k=top_k,
                 include_metadata=True
             )
-            return results
+            return results.matches
         except Exception as e:
             logger.error(f"Error searching vectors: {str(e)}")
-            return None
+            raise e
 
     def upsert(self, vectors, metadata=None):
         try:
-            self.index.upsert(vectors=vectors, metadata=metadata)
+            self.pinecone_index.upsert(vectors=vectors, metadata=metadata)
             return True
         except Exception as e:
             logger.error(f"Error upserting vectors: {str(e)}")
