@@ -11,13 +11,12 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
-    async def process_message(self, message: str, user_phone: str) -> str:
+    async def process_message(self, user_phone: str, message: str) -> str:
         """Process a chat message and return a response"""
         try:
-            # Search for relevant thoughts (will be empty if vector service is unavailable)
-            relevant_thoughts = self.storage.search_thoughts(
+            # Await the search_thoughts call
+            relevant_thoughts = await self.storage.search_thoughts(
                 query=message,
-                user_phone=user_phone,
                 limit=5
             )
             
@@ -52,8 +51,8 @@ class ChatService:
             return reply
 
         except Exception as e:
-            logger.error(f"Failed to process message: {str(e)}")
-            raise
+            logger.error(f"Error processing message: {str(e)}")
+            return "I apologize, but I encountered an error processing your message. Please try again."
 
     def _format_thought_context(self, thoughts: List[Dict]) -> str:
         """Format thoughts into a string for context"""

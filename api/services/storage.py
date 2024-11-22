@@ -75,26 +75,16 @@ class StorageService:
             logger.error(f"Failed to store thought: {str(e)}")
             raise
 
-    def search_thoughts(self, query: str, user_phone: str = None, limit: int = 5) -> List[dict]:
-        """Search for similar thoughts using vector similarity"""
+    async def search_thoughts(self, query: str, limit: int = 5) -> List[Dict]:
         try:
-            if self.vector_service is None:
-                logger.warning("Vector service not available for search - service was not initialized")
+            if not self.vector_service:
+                logger.warning("Vector service not available for search")
                 return []
-
-            # Get vector search results
-            results = self.vector_service.search(query, limit)
             
-            # If user_phone is provided, filter results for that user
-            if user_phone and results:
-                filtered_results = [
-                    r for r in results 
-                    if r.metadata and r.metadata.get('user_phone') == user_phone
-                ]
-                return filtered_results
+            # Await the async search
+            relevant_thoughts = await self.vector_service.search(query, limit)
+            return relevant_thoughts
             
-            return results or []  # Ensure we always return a list
-
         except Exception as e:
             logger.error(f"Thought search error: {str(e)}")
-            return []  # Return empty list on error
+            return []
