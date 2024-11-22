@@ -11,25 +11,31 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
-    async def process_message(self, user_phone: str, message: str) -> str:
+    async def process_message(self, phone: str, message: str) -> str:
         """Process a chat message and return a response"""
         try:
-            # Await the search_thoughts call
-            relevant_thoughts = await self.storage.search_thoughts(
-                query=message,
-                limit=5
-            )
+            # Search for relevant context
+            results = await self.storage.search_thoughts(message)
             
-            # Get thought IDs for storage (if any)
-            thought_ids = [t.id for t in relevant_thoughts if hasattr(t, 'id')] if relevant_thoughts else []
+            # Build context from search results
+            context = []
+            for result in results:
+                # Access metadata safely
+                metadata = result.metadata if hasattr(result, 'metadata') else {}
+                text = metadata.get('text', '')  # Use get() with default value
+                if text:
+                    context.append(text)
             
-            # Format thoughts for context
-            thought_context = self._format_thought_context(relevant_thoughts)
-
-            # Generate response using ChatGPT
+            # If no context found, proceed with empty context
+            context_str = "\n".join(context) if context else ""
+            
+            # Build the prompt
+            system_prompt = self._build_system_prompt(context_str)
+            
+            # Get completion from OpenAI
             messages = [
-                {"role": "system", "content": "You are a helpful assistant managing a user's thoughts and memories."},
-                {"role": "user", "content": f"Context: {thought_context}\n\nUser question: {message}"}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
             ]
             
             response = self.client.chat.completions.create(
@@ -38,17 +44,7 @@ class ChatService:
                 max_tokens=150
             )
             
-            reply = response.choices[0].message.content
-
-            # Store the chat interaction
-            await self.storage.store_chat_message(
-                message=message,
-                from_number=user_phone,
-                response=reply,
-                related_thought_ids=thought_ids if thought_ids else None
-            )
-            
-            return reply
+            return response.choices[0].message.content
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
