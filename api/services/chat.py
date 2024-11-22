@@ -11,6 +11,17 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
+    def _build_system_prompt(self, context: str) -> str:
+        """Build the system prompt with context"""
+        base_prompt = (
+            "You are a helpful AI assistant that helps users recall and analyze their thoughts and memories. "
+            "You have access to their previous thoughts and can help them understand patterns and insights."
+        )
+        
+        if context:
+            return f"{base_prompt}\n\nRelevant context from user's previous thoughts:\n{context}"
+        return base_prompt
+
     async def process_message(self, user_phone: str, message: str) -> str:
         """Process a chat message and return a response"""
         try:
