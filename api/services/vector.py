@@ -35,6 +35,9 @@ class VectorService:
             logger.error(f"Host: {host}")
             raise e
 
+        # Add OpenAI client initialization
+        self.openai_client = OpenAI()
+
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
         try:
@@ -63,7 +66,7 @@ class VectorService:
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text using OpenAI"""
         try:
-            response = self.openai.embeddings.create(
+            response = self.openai_client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
             )
@@ -94,7 +97,7 @@ class VectorService:
     async def get_embedding(self, text: str) -> List[float]:
         """Get embeddings for a text string using OpenAI"""
         try:
-            response = await openai.embeddings.create(
+            response = await self.openai_client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
             )
