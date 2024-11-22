@@ -11,7 +11,7 @@ class ChatService:
         self.storage = storage_service
         self.vector = vector_service
 
-    async def process_message(self, phone: str, message: str) -> str:
+    async def process_message(self, user_phone: str, message: str) -> str:
         """Process a chat message and return a response"""
         try:
             # Search for relevant context
