@@ -77,8 +77,8 @@ class VectorService:
 
     async def search(self, query: str, limit: int = 5) -> List[Dict]:
         try:
-            # Get embeddings (no await needed)
-            embedding = self.get_embedding(query)
+            # Need to await get_embedding since it's an async method
+            embedding = await self.get_embedding(query)
             
             # Then search using the embedding vector
             results = self.pinecone_index.query(
@@ -94,7 +94,7 @@ class VectorService:
     async def get_embedding(self, text: str) -> List[float]:
         """Get embeddings for a text string using OpenAI"""
         try:
-            # No need to await - create() returns response directly
+            # No await needed for OpenAI v1.x client
             response = self.openai_client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
