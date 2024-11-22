@@ -8,55 +8,31 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 class VectorService:
-    def __init__(self, api_key: str, environment: str, index_name: str, host: str = None):
+    def __init__(self, api_key: str, index_name: str, host: str):
         try:
-            # Log initialization attempt
-            logger.info(f"Initializing Pinecone with environment: {environment}, index: {index_name}")
+            logger.info(f"Initializing Pinecone for index: {index_name}")
             
-            # Initialize Pinecone
+            # Initialize Pinecone with just the API key
             pinecone.init(
-                api_key=api_key,
-                environment=environment
+                api_key=api_key
             )
             logger.info("Pinecone core initialized successfully")
             
-            # Log available indexes
-            available_indexes = pinecone.list_indexes()
-            logger.info(f"Available Pinecone indexes: {available_indexes}")
-            
-            # Get or create index
-            if index_name not in available_indexes:
-                logger.info(f"Creating new index: {index_name}")
-                pinecone.create_index(
-                    name=index_name,
-                    dimension=1536,  # OpenAI embeddings dimension
-                    metric='cosine'
-                )
-                logger.info(f"Created new Pinecone index: {index_name}")
-            
-            # Connect to index
-            if host:
-                logger.info(f"Connecting to index using host: {host}")
-                self.pinecone_index = pinecone.Index(
-                    host=host
-                )
-            else:
-                constructed_host = f"https://{index_name}-{environment}.svc.{environment}.pinecone.io"
-                logger.info(f"Connecting to index using constructed host: {constructed_host}")
-                self.pinecone_index = pinecone.Index(
-                    host=constructed_host
-                )
+            # Connect directly to the index using the host
+            logger.info(f"Connecting to index using host: {host}")
+            self.pinecone_index = pinecone.Index(
+                host=host
+            )
             
             # Verify connection
-            try:
-                stats = self.pinecone_index.describe_index_stats()
-                logger.info(f"Successfully connected to index. Stats: {stats}")
-            except Exception as e:
-                logger.error(f"Failed to get index stats: {str(e)}")
-                raise e
+            stats = self.pinecone_index.describe_index_stats()
+            logger.info(f"Successfully connected to index. Stats: {stats}")
             
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone index: {str(e)}")
+            logger.error(f"API Key (first 8 chars): {api_key[:8]}...")
+            logger.error(f"Index Name: {index_name}")
+            logger.error(f"Host: {host}")
             raise e
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
