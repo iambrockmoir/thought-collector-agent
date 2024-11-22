@@ -18,11 +18,9 @@ class VectorService:
             )
             logger.info("Pinecone core initialized successfully")
             
-            # Connect to index using the name parameter instead of host
+            # Just pass the index name directly
             logger.info(f"Connecting to index: {index_name}")
-            self.pinecone_index = pinecone.Index(
-                name=index_name
-            )
+            self.pinecone_index = pinecone.Index(index_name)
             
             # Verify connection
             try:
@@ -39,7 +37,7 @@ class VectorService:
             logger.error(f"Host: {host}")
             raise e
 
-        logger.info(f"Pinecone SDK version: {pinecone.__version__}")
+        logger.info(f"Using Pinecone SDK version: {pinecone.__version__}")
 
     def store_embedding(self, text: str, metadata: dict) -> bool:
         """Store text embedding in vector database"""
