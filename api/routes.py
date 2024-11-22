@@ -52,8 +52,13 @@ twilio_client = Client(
 logger.info("Twilio client initialized successfully")
 
 # Initialize Pinecone
+logger.info("Starting application initialization...")
+
 try:
-    logger.info("Initializing Pinecone...")
+    logger.info(f"Initializing Pinecone with API key: {settings.pinecone_api_key[:8]}...")
+    logger.info(f"Index name: {settings.pinecone_index}")
+    logger.info(f"Host: {settings.pinecone_host}")
+    
     vector_service = VectorService(
         api_key=settings.pinecone_api_key,
         index_name=settings.pinecone_index,
@@ -62,12 +67,18 @@ try:
     logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
-    logger.error(f"Pinecone settings: index={settings.pinecone_index}, host={settings.pinecone_host}")
+    logger.error(f"Error type: {type(e)}")
+    logger.error(f"Error args: {e.args}")
     vector_service = None
 
 # Initialize services
 logger.info("Initializing services...")
 try:
+    if vector_service is None:
+        logger.warning("Initializing storage service without vector service")
+    else:
+        logger.info("Initializing storage service with vector service")
+    
     storage_service = StorageService(
         supabase_client=supabase_client,
         vector_service=vector_service
