@@ -1,6 +1,6 @@
 flask[async]>=2.0.0
 openai==1.3.5
-pinecone-client==2.2.4
+pinecone-client>=3.0.0
 python-dotenv==1.0.0
 supabase==1.0.3
 twilio==8.5.0
