@@ -63,6 +63,7 @@ try:
     logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
+    logger.error(f"Pinecone settings: environment={settings.pinecone_environment}, index={settings.pinecone_index}, host={settings.pinecone_host}")
     vector_service = None
 
 # Initialize services

@@ -10,14 +10,23 @@ logger = logging.getLogger(__name__)
 class VectorService:
     def __init__(self, api_key: str, environment: str, index_name: str, host: str = None):
         try:
+            # Log initialization attempt
+            logger.info(f"Initializing Pinecone with environment: {environment}, index: {index_name}")
+            
             # Initialize Pinecone
             pinecone.init(
                 api_key=api_key,
                 environment=environment
             )
+            logger.info("Pinecone core initialized successfully")
+            
+            # Log available indexes
+            available_indexes = pinecone.list_indexes()
+            logger.info(f"Available Pinecone indexes: {available_indexes}")
             
             # Get or create index
-            if index_name not in pinecone.list_indexes():
+            if index_name not in available_indexes:
+                logger.info(f"Creating new index: {index_name}")
                 pinecone.create_index(
                     name=index_name,
                     dimension=1536,  # OpenAI embeddings dimension
@@ -25,16 +34,26 @@ class VectorService:
                 )
                 logger.info(f"Created new Pinecone index: {index_name}")
             
-            # Connect to index - Updated for new Pinecone SDK
+            # Connect to index
             if host:
+                logger.info(f"Connecting to index using host: {host}")
                 self.pinecone_index = pinecone.Index(
                     host=host
                 )
             else:
+                constructed_host = f"https://{index_name}-{environment}.svc.{environment}.pinecone.io"
+                logger.info(f"Connecting to index using constructed host: {constructed_host}")
                 self.pinecone_index = pinecone.Index(
-                    host=f"https://{index_name}-{environment}.svc.{environment}.pinecone.io"
+                    host=constructed_host
                 )
-            logger.info(f"Connected to Pinecone index: {index_name}")
+            
+            # Verify connection
+            try:
+                stats = self.pinecone_index.describe_index_stats()
+                logger.info(f"Successfully connected to index. Stats: {stats}")
+            except Exception as e:
+                logger.error(f"Failed to get index stats: {str(e)}")
+                raise e
             
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone index: {str(e)}")
