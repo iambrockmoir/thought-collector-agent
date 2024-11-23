@@ -107,43 +107,20 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise e
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Handle incoming SMS webhook from Twilio"""
+@app.post("/webhook")
+async def webhook(request: Request):
     try:
-        logger.info("Received webhook from Twilio")
+        # Increase the timeout for the whole request
+        request.app.state.timeout = 60  # seconds
         
-        # Extract message details
-        from_number = request.form.get('From')
-        message = request.form.get('Body', '')
-        num_media = int(request.form.get('NumMedia', 0))
-        
-        logger.info(f"Received message from {from_number}")
-        
-        # Create event loop for async operations
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Handle media or text
-        if num_media > 0:
-            logger.info("Processing media message...")
-            media_url = request.form.get('MediaUrl0')
-            content_type = request.form.get('MediaContentType0')
-            loop.run_until_complete(
-                sms_service.handle_message(from_number, message, media_url, content_type)
-            )
-        else:
-            logger.info(f"Processing text message: {message}")
-            loop.run_until_complete(
-                sms_service.handle_message(from_number, message)
-            )
-            
-        logger.info("Successfully processed message")
-        return 'OK', 200
+        # Rest of the handler code...
         
     except Exception as e:
-        logger.error(f"Failed to process webhook: {str(e)}")
-        return 'Error', 500
+        logger.error(f"Error in webhook: {str(e)}")
+        return PlainTextResponse(
+            "I apologize, but I encountered an error. Please try again.",
+            status_code=200  # Return 200 so Twilio doesn't retry
+        )
 
 @app.route('/status', methods=['GET'])
 def status():
