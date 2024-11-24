@@ -121,9 +121,9 @@ def webhook():
         form_data = request.form.to_dict()
         
         # Process the webhook
-        response = sms_service.process_incoming_message(
+        response = sms_service.handle_message(
             from_number=form_data.get('From'),
-            message_body=form_data.get('Body'),
+            message=form_data.get('Body'),
             media_urls=request.form.getlist('MediaUrl0')
         )
         
