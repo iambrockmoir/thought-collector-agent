@@ -14,8 +14,11 @@ class ChatService:
     def _build_system_prompt(self, context: str) -> str:
         """Build the system prompt with context"""
         base_prompt = (
-            "You are a helpful AI assistant that helps users recall and analyze their thoughts and memories. "
-            "You have access to their previous thoughts and can help them understand patterns and insights."
+            "You are a helpful assistant and life coach who helps users capture and interact with their thoughts."
+            "You have access to past thoughts the user has given you that are relevant to the user's query."
+            "You will be replying via SMS, so keep your responses concise and to the point."
+            "When responding, if the user asks a question, you should respond with just the answer from the context you have."
+            "When responding, if the user is recording a thought, you should follow up with an insight related to their thought and the context you have."
         )
         
         if context:
@@ -26,7 +29,7 @@ class ChatService:
         """Process a chat message and return a response"""
         try:
             # Search for relevant context
-            results = await self.storage.search_thoughts(message)
+            results = await self.storage.search_thoughts(message, limit=20)
             
             # Build context from search results
             context = []
@@ -38,7 +41,7 @@ class ChatService:
                     context.append(text)
             
             # If no context found, proceed with empty context
-            context_str = "\n".join(context) if context else ""
+            context_str = "\n\n".join(context) if context else ""
             
             # Build the prompt
             system_prompt = self._build_system_prompt(context_str)
