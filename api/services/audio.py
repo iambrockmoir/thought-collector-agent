@@ -30,7 +30,7 @@ class AudioService:
                     return None
                 
                 # Convert to MP3 with timeout
-                mp3_data = await self._convert_audio(session, audio_data, timeout=30)
+                mp3_data = await self._convert_audio(session, audio_data, timeout=25)
                 if not mp3_data:
                     return None
                 
