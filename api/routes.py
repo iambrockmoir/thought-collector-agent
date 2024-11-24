@@ -3,7 +3,7 @@ import logging
 import sys
 import os
 from openai import OpenAI
-from supabase import create_client
+from supabase import create_client, Client
 import pinecone
 from datetime import datetime
 import asyncio
@@ -42,9 +42,9 @@ logger.info("OpenAI client initialized successfully")
 
 logger.info("Initializing Supabase client...")
 try:
-    supabase_client = create_client(
-        supabase_url=os.environ.get("SUPABASE_URL"),
-        supabase_key=os.environ.get("SUPABASE_KEY")
+    supabase: Client = create_client(
+        os.environ.get("SUPABASE_URL", ""),
+        os.environ.get("SUPABASE_KEY", "")
     )
     logger.info("Supabase client initialized successfully")
 except Exception as e:
@@ -87,7 +87,7 @@ try:
         logger.info("Initializing storage service with vector service")
     
     storage_service = StorageService(
-        supabase_client=supabase_client,
+        supabase_client=supabase,
         vector_service=vector_service
     )
     
