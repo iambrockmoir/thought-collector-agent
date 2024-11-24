@@ -117,3 +117,29 @@ class AudioService:
         
         logger.info(f"Transcription complete: {response[:50]}...")
         return response
+
+    def _get_extension_from_content_type(self, content_type: str) -> str:
+        """Convert content type to file extension"""
+        content_type_map = {
+            'audio/amr': 'amr',
+            'audio/amr-wb': 'amr',
+            'audio/mp3': 'mp3',
+            'audio/mpeg': 'mp3',
+            'audio/ogg': 'ogg',
+            'audio/wav': 'wav',
+            'audio/x-wav': 'wav',
+            'audio/webm': 'webm',
+            'audio/aac': 'aac',
+            'audio/m4a': 'm4a',
+        }
+        
+        if not content_type:
+            logger.error("No content type provided")
+            return 'amr'  # Default to AMR as Twilio commonly uses this
+        
+        extension = content_type_map.get(content_type.lower())
+        if not extension:
+            logger.warning(f"Unknown content type: {content_type}, defaulting to amr")
+            return 'amr'
+        
+        return extension
