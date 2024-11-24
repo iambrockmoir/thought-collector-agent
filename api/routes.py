@@ -46,8 +46,7 @@ try:
         schema='public',
         headers={},
         auto_refresh_token=True,
-        persist_session=True,
-        auto_refresh_token_timer=30
+        persist_session=True
     )
     
     supabase_client = create_client(
