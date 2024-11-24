@@ -30,16 +30,19 @@ class AudioService:
                     return None
                 
                 # Convert to MP3 with timeout
-                mp3_data = await self._convert_audio(session, audio_data, timeout=4)
+                mp3_data = await self._convert_audio(session, audio_data, timeout=30)
                 if not mp3_data:
                     return None
                 
                 # Transcribe with timeout
-                return await self._transcribe_audio(mp3_data, timeout=4)
+                return await asyncio.wait_for(
+                    self._transcribe_audio(mp3_data, timeout=None),
+                    timeout=25
+                )
                 
         except asyncio.TimeoutError:
             logger.error("Audio processing timed out")
-            return "I'm sorry, but the audio message was too long to process. Could you try sending a shorter message or sending your thought as text?"
+            return "I'm sorry, but the audio message took too long to process. Could you try sending a shorter message or sending your thought as text?"
         except Exception as e:
             logger.error(f"Error processing audio: {str(e)}")
             return "I apologize, but I encountered an error processing your audio message. Could you try again or send your thought as text?"
