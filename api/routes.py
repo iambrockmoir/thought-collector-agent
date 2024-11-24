@@ -40,11 +40,21 @@ openai_client = OpenAI(api_key=settings.openai_api_key)
 logger.info("OpenAI client initialized successfully")
 
 logger.info("Initializing Supabase client...")
-supabase_client = create_client(
-    settings.supabase_url,
-    settings.supabase_key
-)
-logger.info("Supabase client initialized successfully")
+try:
+    supabase_client = create_client(
+        supabase_url=os.getenv("SUPABASE_URL"),
+        supabase_key=os.getenv("SUPABASE_KEY"),
+        options={
+            "auth": {
+                "autoRefreshToken": True,
+                "persistSession": True
+            }
+        }
+    )
+    logger.info("Supabase client initialized successfully")
+except Exception as e:
+    logger.error(f"Error initializing Supabase client: {str(e)}")
+    raise
 
 logger.info("Initializing Twilio client...")
 twilio_client = Client(
