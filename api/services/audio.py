@@ -22,30 +22,20 @@ class AudioService:
                 logger.error("No content type provided")
                 return None
             
-            logger.info("Downloading audio file...")
-            response = requests.get(url)
-            audio_data = response.content
-            logger.info(f"Audio file downloaded: {len(audio_data)} bytes")
-            
-            # Log first few bytes of file header for debugging
-            header_hex = audio_data[:20].hex()
-            logger.info(f"File header: {header_hex}")
-            
-            # Create a temporary file with the correct extension based on content type
-            extension = self._get_extension_from_content_type(content_type)
-            if not extension:
-                logger.error(f"Unsupported content type: {content_type}")
-                return None
-            
-            with tempfile.NamedTemporaryFile(suffix=f".{extension}", delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = temp_file.name
+            # Create aiohttp session for async requests
+            async with aiohttp.ClientSession() as session:
+                # Download audio with Twilio auth
+                audio_data = await self._download_audio(session, url)
+                if not audio_data:
+                    return None
                 
-            # Convert to MP3 with timeout
-            mp3_data = await self._convert_audio(session, audio_data, timeout=4)
-            
-            # Transcribe with timeout
-            return await self._transcribe_audio(mp3_data, timeout=4)
+                # Convert to MP3 with timeout
+                mp3_data = await self._convert_audio(session, audio_data, timeout=4)
+                if not mp3_data:
+                    return None
+                
+                # Transcribe with timeout
+                return await self._transcribe_audio(mp3_data, timeout=4)
                 
         except asyncio.TimeoutError:
             logger.error("Audio processing timed out")
