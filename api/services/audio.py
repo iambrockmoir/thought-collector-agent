@@ -15,17 +15,37 @@ class AudioService:
         self.converter_url = converter_url
         logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
-    async def process_audio(self, url: str, content_type: Optional[str] = None) -> str:
+    async def process_audio(self, url: str, content_type: str) -> Optional[str]:
+        """Process audio file from URL and return transcription"""
         try:
-            # Download audio file with timeout
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
-                content_type, audio_data = await self._download_audio(session, url)
+            if not content_type:
+                logger.error("No content type provided")
+                return None
+            
+            logger.info("Downloading audio file...")
+            response = requests.get(url)
+            audio_data = response.content
+            logger.info(f"Audio file downloaded: {len(audio_data)} bytes")
+            
+            # Log first few bytes of file header for debugging
+            header_hex = audio_data[:20].hex()
+            logger.info(f"File header: {header_hex}")
+            
+            # Create a temporary file with the correct extension based on content type
+            extension = self._get_extension_from_content_type(content_type)
+            if not extension:
+                logger.error(f"Unsupported content type: {content_type}")
+                return None
+            
+            with tempfile.NamedTemporaryFile(suffix=f".{extension}", delete=False) as temp_file:
+                temp_file.write(audio_data)
+                temp_path = temp_file.name
                 
-                # Convert to MP3 with timeout
-                mp3_data = await self._convert_audio(session, audio_data, timeout=4)
-                
-                # Transcribe with timeout
-                return await self._transcribe_audio(mp3_data, timeout=4)
+            # Convert to MP3 with timeout
+            mp3_data = await self._convert_audio(session, audio_data, timeout=4)
+            
+            # Transcribe with timeout
+            return await self._transcribe_audio(mp3_data, timeout=4)
                 
         except asyncio.TimeoutError:
             logger.error("Audio processing timed out")
