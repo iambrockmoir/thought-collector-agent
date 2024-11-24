@@ -40,3 +40,6 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+lib/
+app.py
+__init__.py
