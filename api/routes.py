@@ -125,7 +125,7 @@ async def webhook():
             from_number=form_data.get('From'),
             message=form_data.get('Body'),
             media_url=request.form.get('MediaUrl0'),
-            media_urls=request.form.getlist('MediaUrl0')
+            content_type=request.form.get('MediaContentType0')
         )
         
         # Create TwiML response
@@ -136,7 +136,7 @@ async def webhook():
         
     except Exception as e:
         logger.error(f"Error in webhook: {str(e)}")
-        return "I apologize, but I encountered an error. Please try again.", 200  # Return 200 so Twilio doesn't retry
+        return "I apologize, but I encountered an error. Please try again.", 200
 
 @app.route('/status', methods=['GET'])
 def status():
