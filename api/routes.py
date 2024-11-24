@@ -121,10 +121,10 @@ async def webhook():
         form_data = request.form.to_dict()
         
         # Process the webhook using correct parameter names
-        # Process the webhook
-        response = sms_service.handle_message(
+        response = await sms_service.handle_message(
             from_number=form_data.get('From'),
             message=form_data.get('Body'),
+            media_url=request.form.get('MediaUrl0'),
             media_urls=request.form.getlist('MediaUrl0')
         )
         
