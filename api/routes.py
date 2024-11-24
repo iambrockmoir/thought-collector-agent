@@ -114,20 +114,28 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise e
 
-@app.post("/webhook")
-async def webhook(request: Request):
+@app.route("/webhook", methods=['POST'])
+def webhook():
     try:
-        # Increase the timeout for the whole request
-        request.app.state.timeout = 60  # seconds
+        # Get data from Flask request
+        form_data = request.form.to_dict()
         
-        # Rest of the handler code...
+        # Process the webhook
+        response = sms_service.process_incoming_message(
+            from_number=form_data.get('From'),
+            message_body=form_data.get('Body'),
+            media_urls=request.form.getlist('MediaUrl0')
+        )
+        
+        # Create TwiML response
+        twiml_response = MessagingResponse()
+        twiml_response.message(response)
+        
+        return Response(str(twiml_response), mimetype='text/xml')
         
     except Exception as e:
         logger.error(f"Error in webhook: {str(e)}")
-        return PlainTextResponse(
-            "I apologize, but I encountered an error. Please try again.",
-            status_code=200  # Return 200 so Twilio doesn't retry
-        )
+        return "I apologize, but I encountered an error. Please try again.", 200  # Return 200 so Twilio doesn't retry
 
 @app.route('/status', methods=['GET'])
 def status():
