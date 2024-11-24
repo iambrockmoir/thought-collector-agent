@@ -15,7 +15,7 @@ class AudioService:
         self.converter_url = converter_url
         logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
-    async def process_audio(self, url: str) -> str:
+    async def process_audio(self, url: str, content_type: Optional[str] = None) -> str:
         try:
             # Download audio file with timeout
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
