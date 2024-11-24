@@ -60,7 +60,7 @@ class AudioService:
             audio_data = await response.read()
             logger.info(f"Audio file downloaded: {len(audio_data)} bytes")
             logger.info(f"File header: {audio_data[:20].hex()}")
-            return content_type, audio_data
+            return audio_data
 
     async def _convert_audio(self, session, audio_data, timeout):
         # Convert using Rails service
