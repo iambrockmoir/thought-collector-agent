@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from uuid import UUID, uuid4
 from supabase import create_client, Client
-from pinecone import Pinecone
+from pinecone import Pinecone, PodSpec  # For newer versions
+# OR
+import pinecone  # For older versions
 
 from lib.config import get_settings
 from lib.error_handler import AppError
@@ -24,10 +26,14 @@ class Database:
         )
         
         # Initialize Pinecone
-        self.pinecone = Pinecone(
-            api_key=settings.pinecone_api_key,
-            environment=settings.pinecone_environment
-        )
+        if isinstance(settings.pinecone_api_key, str):
+            self.pinecone = Pinecone(api_key=settings.pinecone_api_key)
+        else:
+            pinecone.init(
+                api_key=settings.pinecone_api_key,
+                environment=settings.pinecone_environment
+            )
+            self.pinecone = pinecone
         
         self.CACHE_TIMEOUT = 300  # 5 minutes
         self._thought_cache = {}
