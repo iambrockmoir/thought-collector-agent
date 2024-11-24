@@ -115,11 +115,12 @@ except Exception as e:
     raise e
 
 @app.route("/webhook", methods=['POST'])
-def webhook():
+async def webhook():
     try:
         # Get data from Flask request
         form_data = request.form.to_dict()
         
+        # Process the webhook using correct parameter names
         # Process the webhook
         response = sms_service.handle_message(
             from_number=form_data.get('From'),
