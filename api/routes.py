@@ -42,17 +42,9 @@ logger.info("OpenAI client initialized successfully")
 
 logger.info("Initializing Supabase client...")
 try:
-    options = ClientOptions(
-        schema='public',
-        headers={},
-        auto_refresh_token=True,
-        persist_session=True
-    )
-    
     supabase_client = create_client(
-        supabase_url=os.getenv("SUPABASE_URL"),
-        supabase_key=os.getenv("SUPABASE_KEY"),
-        options=options
+        supabase_url=os.environ.get("SUPABASE_URL"),
+        supabase_key=os.environ.get("SUPABASE_KEY")
     )
     logger.info("Supabase client initialized successfully")
 except Exception as e:
