@@ -11,5 +11,10 @@
       "src": "/(.*)",
       "dest": "api/routes.py"
     }
-  ]
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "maxDuration": 60
+    }
+  }
 } 

@@ -55,7 +55,8 @@ class ChatService:
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
-                max_tokens=150
+                max_tokens=150,
+                timeout=30
             )
             
             return response.choices[0].message.content
