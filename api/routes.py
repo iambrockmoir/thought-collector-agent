@@ -12,6 +12,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
+from supabase.lib.client_options import ClientOptions
 
 from .services.audio import AudioService
 from .services.chat import ChatService
@@ -41,13 +42,13 @@ logger.info("OpenAI client initialized successfully")
 
 logger.info("Initializing Supabase client...")
 try:
-    options = {
-        'headers': {},  # Initialize empty headers dict
-        'auth': {
-            'autoRefreshToken': True,
-            'persistSession': True
-        }
-    }
+    options = ClientOptions(
+        schema='public',
+        headers={},
+        auto_refresh_token=True,
+        persist_session=True,
+        auto_refresh_token_timer=30
+    )
     
     supabase_client = create_client(
         supabase_url=os.getenv("SUPABASE_URL"),
