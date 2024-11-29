@@ -29,7 +29,7 @@ class ChatService:
         """Process a chat message and return a response"""
         try:
             # Search for relevant context
-            results = await self.storage.search_thoughts(message, limit=20)
+            results = await self.storage.search_thoughts(message, limit=10)
             
             # Build context from search results
             context = []
