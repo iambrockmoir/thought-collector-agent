@@ -1,0 +1,3 @@
+[submodule "audio-converter-service"]
+	path = audio-converter-service
+	url = https://github.com/iambrockmoir/audio-converter-service
