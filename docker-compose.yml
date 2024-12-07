@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - AUDIO_CONVERTER_URL=http://audio-converter:4000/convert
+      - NODE_ENV=development
+    env_file:
+      - .env
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+    depends_on:
+      - audio-converter
+
+  audio-converter:
+    build:
+      context: ./audio-converter-service
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+    volumes:
+      - ./audio-converter-service:/app
+      - /app/node_modules
+      - audio_uploads:/app/uploads
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http api:3000
+    depends_on:
+      - api
+
+volumes:
+  audio_uploads: 

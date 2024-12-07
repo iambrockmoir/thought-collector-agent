@@ -43,3 +43,25 @@ yarn-error.log*
 lib/
 app.py
 __init__.py
+
+
+rails/config/master.key
+rails/storage/
+rails/tmp/
+rails/public/assets
+rails/.bundle
+rails/vendor/bundle
+rails/db/*.sqlite3
+rails/db/*.sqlite3-*
+
+# Keep lib/ directory for the project
+!lib/
+# But ignore these specific files that were previously ignored
+/lib64/
+/app.py
+/__init__.py
+
+# General
+.DS_Store
+*.log
+*.mp3

@@ -13,6 +13,8 @@ from twilio.rest import Client
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 from supabase.lib.client_options import ClientOptions
+import aiohttp
+import uuid
 
 from .services.audio import AudioService
 from .services.chat import ChatService
@@ -114,29 +116,57 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise e
 
+def create_twiml_response(message: str) -> Response:
+    """Create a TwiML response with the given message"""
+    resp = MessagingResponse()
+    resp.message(message)
+    return Response(str(resp), mimetype='text/xml')
+
 @app.route("/webhook", methods=['POST'])
 async def webhook():
     try:
-        # Get data from Flask request
         form_data = request.form.to_dict()
         
-        # Process the webhook using correct parameter names
+        # If this is an audio message, send to Rails and acknowledge
+        if request.form.get('MediaUrl0'):
+            await forward_to_rails_processor(
+                from_number=form_data.get('From'),
+                media_url=request.form.get('MediaUrl0'),
+                content_type=request.form.get('MediaContentType0')
+            )
+            # Return empty TwiML response (no immediate SMS reply)
+            return Response(str(MessagingResponse()), mimetype='text/xml')
+            
+        # Handle text messages normally
         response = await sms_service.handle_message(
             from_number=form_data.get('From'),
-            message=form_data.get('Body'),
-            media_url=request.form.get('MediaUrl0'),
-            content_type=request.form.get('MediaContentType0')
+            message=form_data.get('Body')
         )
-        
-        # Create TwiML response
-        twiml_response = MessagingResponse()
-        twiml_response.message(response)
-        
-        return Response(str(twiml_response), mimetype='text/xml')
+        return create_twiml_response(response)
         
     except Exception as e:
         logger.error(f"Error in webhook: {str(e)}")
-        return "I apologize, but I encountered an error. Please try again.", 200
+        return create_twiml_response(
+            "I apologize, but I encountered an error. Please try again."
+        )
+
+async def forward_to_rails_processor(from_number: str, media_url: str, content_type: str):
+    """Forward audio processing request to Rails"""
+    async with aiohttp.ClientSession() as session:
+        payload = {
+            'from_number': from_number,
+            'media_url': media_url,
+            'content_type': content_type,
+            'callback_url': f"{settings.vercel_url}/audio-callback"
+        }
+        
+        async with session.post(
+            f"{settings.audio_converter_url}/process",
+            json=payload
+        ) as response:
+            if response.status != 200:
+                logger.error(f"Failed to forward to Rails: {await response.text()}")
+                raise Exception("Failed to forward audio processing")
 
 @app.route('/status', methods=['GET'])
 def status():
@@ -182,3 +212,37 @@ def root():
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}, 500
+
+@app.route("/audio-callback", methods=['POST'])
+async def audio_callback():
+    data = request.json
+    
+    try:
+        # Store in Supabase
+        thought_record = await storage_service.store_thought(
+            data['from_number'],
+            data['transcription']
+        )
+        
+        # Store embedding in Pinecone
+        await vector_service.store_embedding(
+            data['transcription'],
+            metadata={
+                'user_phone': data['from_number'],
+                'thought_id': thought_record['id'],
+                'created_at': thought_record['created_at']
+            }
+        )
+        
+        # Generate and send response
+        response = await chat_service.process_message(
+            from_number=data['from_number'],
+            message=data['transcription']
+        )
+        await sms_service.send_message(data['from_number'], response)
+        
+        return jsonify({'status': 'success'})
+        
+    except Exception as e:
+        logger.error(f"Error in audio callback: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
