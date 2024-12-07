@@ -125,30 +125,42 @@ def create_twiml_response(message: str) -> Response:
 @app.route("/webhook", methods=['POST'])
 async def webhook():
     try:
+        logger.info("Webhook received")
+        logger.info(f"Form data: {request.form.to_dict()}")
+        
         form_data = request.form.to_dict()
         
         # If this is an audio message, send to Rails and acknowledge
         if request.form.get('MediaUrl0'):
+            logger.info("Audio message detected")
             await forward_to_rails_processor(
                 from_number=form_data.get('From'),
                 media_url=request.form.get('MediaUrl0'),
                 content_type=request.form.get('MediaContentType0')
             )
-            # Return empty TwiML response (no immediate SMS reply)
+            logger.info("Audio forwarded to Rails")
             return Response(str(MessagingResponse()), mimetype='text/xml')
             
-        # Handle text messages normally
+        # Handle text messages
+        logger.info("Text message detected")
         response = await sms_service.handle_message(
             from_number=form_data.get('From'),
             message=form_data.get('Body')
         )
-        return create_twiml_response(response)
+        logger.info(f"Generated response: {response}")
         
+        # Create TwiML response
+        twiml = MessagingResponse()
+        twiml.message(response)
+        return Response(str(twiml), mimetype='text/xml')
+
     except Exception as e:
-        logger.error(f"Error in webhook: {str(e)}")
-        return create_twiml_response(
+        logger.error(f"Webhook error: {str(e)}", exc_info=True)
+        twiml = MessagingResponse()
+        twiml.message(
             "I apologize, but I encountered an error. Please try again."
         )
+        return Response(str(twiml), mimetype='text/xml')
 
 async def forward_to_rails_processor(from_number: str, media_url: str, content_type: str):
     """Forward audio processing request to Rails"""
