@@ -64,13 +64,18 @@ class StorageService:
     def store_thought(self, from_number: str, thought: str, embedding: Optional[List[float]] = None) -> None:
         try:
             data = {
-                'phone_number': from_number,
-                'thought': thought,
+                'user_phone': from_number,
+                'transcription': thought,
                 'created_at': datetime.now().isoformat()
             }
             if embedding:
-                data['embedding'] = embedding
-            self.supabase.table(self.thoughts_table).insert(data).execute()
+                data['metadata'] = {'embedding': embedding}
+            
+            logger.info(f"Storing thought in Supabase: {data}")
+            result = self.supabase.table(self.thoughts_table).insert(data).execute()
+            if hasattr(result, 'error') and result.error:
+                raise Exception(f"Supabase error: {result.error}")
+            return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Failed to store thought: {str(e)}")
             raise
