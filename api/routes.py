@@ -281,7 +281,7 @@ def audio_callback():
         
         # Generate and send response
         response = chat_service.process_message(
-            from_number=data['from_number'],
+            user_phone=data['from_number'],
             message=data['transcription']
         )
         logger.info(f"Generated response: {response}")
