@@ -244,10 +244,22 @@ def root():
 
 @app.route("/audio-callback", methods=['POST'])
 def audio_callback():
-    data = request.json
-    logger.info(f"Received audio callback: {data}")
+    logger.info("Received request to /audio-callback")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    logger.info(f"Request data: {request.get_data(as_text=True)}")
     
     try:
+        data = request.json
+        logger.info(f"Parsed JSON data: {data}")
+        
+        if not data.get('transcription'):
+            logger.error("Missing transcription in request data")
+            return jsonify({'status': 'error', 'message': 'Missing transcription'}), 400
+            
+        if not data.get('from_number'):
+            logger.error("Missing from_number in request data")
+            return jsonify({'status': 'error', 'message': 'Missing from_number'}), 400
+        
         # Store in Supabase
         thought_record = storage_service.store_thought(
             data['from_number'],
