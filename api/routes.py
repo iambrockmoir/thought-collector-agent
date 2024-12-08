@@ -243,37 +243,45 @@ def root():
         return {'status': 'error', 'message': str(e)}, 500
 
 @app.route("/audio-callback", methods=['POST'])
-async def audio_callback():
+def audio_callback():
     data = request.json
+    logger.info(f"Received audio callback: {data}")
     
     try:
         # Store in Supabase
-        thought_record = await storage_service.store_thought(
+        thought_record = storage_service.store_thought(
             data['from_number'],
             data['transcription']
         )
+        logger.info(f"Stored thought record: {thought_record}")
         
         # Store embedding in Pinecone
-        await vector_service.store_embedding(
-            data['transcription'],
-            metadata={
-                'user_phone': data['from_number'],
-                'thought_id': thought_record['id'],
-                'created_at': thought_record['created_at']
-            }
-        )
+        if vector_service:
+            vector_service.store_embedding(
+                data['transcription'],
+                metadata={
+                    'user_phone': data['from_number'],
+                    'thought_id': thought_record['id'],
+                    'created_at': thought_record['created_at']
+                }
+            )
+            logger.info("Stored embedding in Pinecone")
         
         # Generate and send response
-        response = await chat_service.process_message(
+        response = chat_service.process_message(
             from_number=data['from_number'],
             message=data['transcription']
         )
-        await sms_service.send_message(data['from_number'], response)
+        logger.info(f"Generated response: {response}")
+        
+        sms_service.send_message(data['from_number'], response)
+        logger.info("Sent SMS response")
         
         return jsonify({'status': 'success'})
         
     except Exception as e:
         logger.error(f"Error in audio callback: {str(e)}")
+        logger.error(f"Stack trace: {e.__traceback__}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.post("/webhook")
