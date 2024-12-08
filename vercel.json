@@ -13,6 +13,6 @@
     }
   ],
   "env": {
-    "PYTHONPATH": "."
+    "PYTHONPATH": "./api"
   }
 } 
