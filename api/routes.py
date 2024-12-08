@@ -243,7 +243,7 @@ def root():
         return {'status': 'error', 'message': str(e)}, 500
 
 @app.route("/audio-callback", methods=['POST'])
-def audio_callback():
+async def audio_callback():
     logger.info("Received request to /audio-callback")
     logger.info(f"Request headers: {dict(request.headers)}")
     logger.info(f"Request data: {request.get_data(as_text=True)}")
@@ -280,13 +280,13 @@ def audio_callback():
             logger.info("Stored embedding in Pinecone")
         
         # Generate and send response
-        response = chat_service.process_message(
+        response = await chat_service.process_message(
             user_phone=data['from_number'],
             message=data['transcription']
         )
         logger.info(f"Generated response: {response}")
         
-        sms_service.send_message(data['from_number'], response)
+        await sms_service.send_message(data['from_number'], response)
         logger.info("Sent SMS response")
         
         return jsonify({'status': 'success'})
