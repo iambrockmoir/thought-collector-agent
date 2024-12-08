@@ -6,6 +6,7 @@ from typing import Optional
 from openai import OpenAI
 import requests
 import asyncio
+from api.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class AudioService:
     def __init__(self, openai_client, converter_url: str):
         self.client = openai_client
         self.converter_url = converter_url
+        self.base_url = os.getenv('BASE_URL')
         logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
     async def process_audio(self, url: str, content_type: str) -> Optional[str]:
@@ -65,16 +67,18 @@ class AudioService:
             logger.info(f"File header: {audio_data[:20].hex()}")
             return audio_data
 
-    async def _convert_audio(self, session, audio_data, timeout):
+    async def _convert_audio(self, session, audio_data, timeout, from_number):
         # Convert using Rails service
         logger.info(f"Converting audio using service at {self.converter_url}")
         
         # Create form data matching multer's expectations
         data = aiohttp.FormData()
-        data.add_field('audio',  # Must match multer's upload.single('audio')
+        data.add_field('audio',
                       audio_data,
-                      filename='audio.amr',  # Original filename
+                      filename='audio.amr',
                       content_type='audio/amr')
+        data.add_field('callback_url', f"{self.base_url}/audio-callback")
+        data.add_field('from_number', from_number)
 
         async with session.post(self.converter_url, data=data) as response:
             if response.status != 200:
