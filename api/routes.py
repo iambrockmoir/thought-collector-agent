@@ -1,4 +1,4 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, jsonify
 import logging
 import sys
 import os
@@ -165,16 +165,31 @@ async def webhook():
 async def forward_to_rails_processor(from_number: str, media_url: str, content_type: str):
     """Forward audio processing request to Rails"""
     async with aiohttp.ClientSession() as session:
-        payload = {
-            'from_number': from_number,
-            'media_url': media_url,
-            'content_type': content_type,
-            'callback_url': f"{settings.vercel_url}/audio-callback"
-        }
+        # Add Twilio authentication when downloading the audio file
+        auth = aiohttp.BasicAuth(
+            login=settings.twilio_account_sid,
+            password=settings.twilio_auth_token
+        )
         
+        # Download audio with authentication
+        async with session.get(media_url, auth=auth) as response:
+            if response.status != 200:
+                logger.error(f"Failed to download audio from Twilio: {await response.text()}")
+                raise Exception("Failed to download audio from Twilio")
+            
+            audio_data = await response.read()
+        
+        # Prepare the file upload
+        form_data = aiohttp.FormData()
+        form_data.add_field('audio',
+                          audio_data,
+                          filename='audio.amr',
+                          content_type=content_type)
+        
+        # Send to converter service using the Node.js endpoint
         async with session.post(
-            f"{settings.audio_converter_url}/process",
-            json=payload
+            f"{settings.audio_converter_url}/convert",
+            data=form_data
         ) as response:
             if response.status != 200:
                 logger.error(f"Failed to forward to Rails: {await response.text()}")
@@ -258,3 +273,44 @@ async def audio_callback():
     except Exception as e:
         logger.error(f"Error in audio callback: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.post("/webhook")
+async def handle_webhook(request: Request):
+    try:
+        form = await request.form()
+        
+        # Extract audio details
+        media_url = form.get('MediaUrl0')
+        from_number = form.get('From')
+        content_type = form.get('MediaContentType0')
+        
+        # Start async job without any initial message
+        background_tasks.add_task(
+            process_audio_message,
+            media_url=media_url,
+            from_number=from_number,
+            content_type=content_type
+        )
+        
+        return {"status": "processing"}
+        
+    except Exception as e:
+        logger.error(f"Error processing webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def process_audio_message(media_url: str, from_number: str, content_type: str):
+    """Process audio message asynchronously"""
+    try:
+        # Process audio
+        transcription = await audio_service.process_audio(media_url, content_type)
+        
+        if transcription:
+            # Only send message when we have the transcription
+            await sms_service.send_message(from_number, f"Here's what I heard: {transcription}")
+            
+    except Exception as e:
+        logger.error(f"Error in async audio processing: {e}")
+        await sms_service.send_message(
+            from_number,
+            "Sorry, something went wrong while processing your audio. Could you try again?"
+        )
