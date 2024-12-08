@@ -143,8 +143,8 @@ async def webhook():
             
         # Handle text messages
         logger.info("Text message detected")
-        response = await sms_service.handle_message(
-            from_number=form_data.get('From'),
+        response = await chat_service.process_message(
+            user_phone=form_data.get('From'),
             message=form_data.get('Body')
         )
         logger.info(f"Generated response: {response}")
