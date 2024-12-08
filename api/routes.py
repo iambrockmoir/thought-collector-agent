@@ -185,7 +185,7 @@ async def forward_to_rails_processor(from_number: str, media_url: str, content_t
                           audio_data,
                           filename='audio.amr',
                           content_type=content_type)
-        form_data.add_field('callback_url', f"{settings.vercel_url}/audio-callback")
+        form_data.add_field('callback_url', f"https://{settings.vercel_url}/audio-callback")
         form_data.add_field('from_number', from_number)
         
         # Send to converter service using the Node.js endpoint
