@@ -21,7 +21,7 @@ from .services.chat import ChatService
 from .services.sms import SMSService
 from .services.storage import StorageService
 from .services.vector import VectorService
-from api import settings
+from . import settings
 
 # Configure detailed logging
 logging.basicConfig(
@@ -302,7 +302,11 @@ async def process_audio_message(media_url: str, from_number: str, content_type: 
     """Process audio message asynchronously"""
     try:
         # Process audio
-        transcription = await audio_service.process_audio(media_url, content_type)
+        transcription = await audio_service.process_audio(
+            media_url=media_url,
+            content_type=content_type,
+            from_number=from_number
+        )
         
         if transcription:
             # Only send message when we have the transcription

@@ -17,7 +17,7 @@ class AudioService:
         self.base_url = os.getenv('BASE_URL')
         logger.info(f"Audio service initialized with converter URL: {converter_url}")
 
-    async def process_audio(self, url: str, content_type: str) -> Optional[str]:
+    async def process_audio(self, url: str, content_type: str, from_number: str) -> Optional[str]:
         """Process audio file from URL and return transcription"""
         try:
             if not content_type:
@@ -32,7 +32,7 @@ class AudioService:
                     return None
                 
                 # Convert to MP3 with timeout
-                mp3_data = await self._convert_audio(session, audio_data, timeout=25)
+                mp3_data = await self._convert_audio(session, audio_data, timeout=25, from_number=from_number)
                 if not mp3_data:
                     return None
                 
