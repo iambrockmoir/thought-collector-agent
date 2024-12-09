@@ -7,14 +7,9 @@ from supabase import create_client, Client
 import pinecone
 from datetime import datetime
 import asyncio
-from functools import partial, wraps
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
-from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
-from supabase.lib.client_options import ClientOptions
 import aiohttp
-import uuid
 
 from .services.audio import AudioService
 from .services.chat import ChatService
@@ -130,7 +125,7 @@ async def webhook():
         
         form_data = request.form.to_dict()
         
-        # If this is an audio message, send to Rails and acknowledge
+        # Branch 1: Audio Message
         if request.form.get('MediaUrl0'):
             logger.info("Audio message detected")
             await forward_to_rails_processor(
@@ -141,13 +136,21 @@ async def webhook():
             logger.info("Audio forwarded to Rails")
             return Response(str(MessagingResponse()), mimetype='text/xml')
             
-        # Handle text messages
+        # Branch 2: Text Message
         logger.info("Text message detected")
         response = await chat_service.process_message(
             user_phone=form_data.get('From'),
             message=form_data.get('Body')
         )
         logger.info(f"Generated response: {response}")
+        
+        # Store both the user message and response in chat history
+        await storage_service.store_chat_message(
+            message=form_data.get('Body'),
+            from_number=form_data.get('From'),
+            response=response
+        )
+        logger.info("Chat messages stored in database")
         
         # Create TwiML response
         twiml = MessagingResponse()
@@ -261,82 +264,47 @@ async def audio_callback():
             return jsonify({'status': 'error', 'message': 'Missing from_number'}), 400
         
         # Store in Supabase
+        logger.info(f"Storing thought in Supabase for user: {data['from_number']}")
         thought_record = storage_service.store_thought(
             data['from_number'],
             data['transcription']
         )
-        logger.info(f"Stored thought record: {thought_record}")
+        logger.info(f"Successfully stored thought record: {thought_record}")
         
         # Store embedding in Pinecone
         if vector_service:
+            logger.info("Storing embedding in Pinecone")
+            metadata = {
+                'user_phone': data['from_number'],
+                'thought_id': thought_record['id'],
+                'created_at': thought_record['created_at']
+            }
+            logger.info(f"Embedding metadata: {metadata}")
             vector_service.store_embedding(
                 data['transcription'],
-                metadata={
-                    'user_phone': data['from_number'],
-                    'thought_id': thought_record['id'],
-                    'created_at': thought_record['created_at']
-                }
+                metadata=metadata
             )
-            logger.info("Stored embedding in Pinecone")
+            logger.info("Successfully stored embedding in Pinecone")
+        else:
+            logger.warning("Vector service not available - skipping embedding storage")
         
         # Generate and send response
+        logger.info("Generating chat response")
         response = await chat_service.process_message(
             user_phone=data['from_number'],
             message=data['transcription']
         )
-        logger.info(f"Generated response: {response}")
+        logger.info(f"Generated chat response: {response}")
         
+        logger.info(f"Sending SMS response to {data['from_number']}")
         await sms_service.send_message(data['from_number'], response)
-        logger.info("Sent SMS response")
+        logger.info("Successfully sent SMS response")
         
+        logger.info("Audio callback processing completed successfully")
         return jsonify({'status': 'success'})
         
     except Exception as e:
         logger.error(f"Error in audio callback: {str(e)}")
         logger.error(f"Stack trace: {e.__traceback__}")
+        logger.error(f"Request data that caused error: {request.get_data(as_text=True)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.post("/webhook")
-async def handle_webhook(request: Request):
-    try:
-        form = await request.form()
-        
-        # Extract audio details
-        media_url = form.get('MediaUrl0')
-        from_number = form.get('From')
-        content_type = form.get('MediaContentType0')
-        
-        # Start async job without any initial message
-        background_tasks.add_task(
-            process_audio_message,
-            media_url=media_url,
-            from_number=from_number,
-            content_type=content_type
-        )
-        
-        return {"status": "processing"}
-        
-    except Exception as e:
-        logger.error(f"Error processing webhook: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-async def process_audio_message(media_url: str, from_number: str, content_type: str):
-    """Process audio message asynchronously"""
-    try:
-        # Process audio
-        transcription = await audio_service.process_audio(
-            media_url=media_url,
-            content_type=content_type,
-            from_number=from_number
-        )
-        
-        if transcription:
-            # Only send message when we have the transcription
-            await sms_service.send_message(from_number, f"Here's what I heard: {transcription}")
-            
-    except Exception as e:
-        logger.error(f"Error in async audio processing: {e}")
-        await sms_service.send_message(
-            from_number,
-            "Sorry, something went wrong while processing your audio. Could you try again?"
-        )
