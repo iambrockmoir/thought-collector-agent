@@ -38,8 +38,8 @@ class VectorService:
         # Add OpenAI client initialization
         self.openai_client = OpenAI()
 
-    def store_embedding(self, text: str, metadata: dict) -> bool:
-        """Store text embedding in vector database"""
+    def store_embedding(self, text: str, metadata: dict, phone_number: str) -> bool:
+        """Store text embedding in vector database with user's phone number"""
         try:
             if not self.pinecone_index:
                 logger.warning("Vector service not available for storage")
@@ -47,6 +47,9 @@ class VectorService:
 
             # Generate embedding
             embedding = self._get_embedding(text)
+            
+            # Add phone number to metadata
+            metadata['phone_number'] = phone_number
             
             # Store in Pinecone
             self.pinecone_index.upsert(
@@ -75,16 +78,17 @@ class VectorService:
             logger.error(f"Failed to get embedding: {str(e)}")
             raise
 
-    async def search(self, query: str, limit: int = 5) -> List[Dict]:
+    async def search(self, query: str, phone_number: str, limit: int = 5) -> List[Dict]:
         try:
-            # Need to await get_embedding since it's an async method
+            # 1. Convert query to embedding vector
             embedding = await self.get_embedding(query)
             
-            # Then search using the embedding vector
+            # 2. Search Pinecone for similar vectors with phone number filter
             results = self.pinecone_index.query(
                 vector=embedding,
                 top_k=limit,
-                include_metadata=True
+                include_metadata=True,
+                filter={"phone_number": {"$eq": phone_number}}
             )
             return results.matches
         except Exception as e:
