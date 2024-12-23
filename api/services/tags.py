@@ -16,6 +16,7 @@ class TagService:
         """Generate tag suggestions for a transcribed thought."""
         try:
             existing_tags = await self.storage.get_existing_tags(user_phone)
+            logger.info(f"Found existing tags: {existing_tags}")
             
             prompt = f"""
             Analyze this transcription and suggest relevant tags.
@@ -42,13 +43,18 @@ class TagService:
                 return []
                 
             suggested_tags = response.choices[0].message.content.strip()
+            logger.info(f"Raw tag suggestions: {suggested_tags}")
+            
             if not suggested_tags:
                 return []
                 
-            return [tag.strip() for tag in suggested_tags.split(",") if tag.strip()]
+            tags = [tag.strip() for tag in suggested_tags.split(",") if tag.strip()]
+            logger.info(f"Processed tag suggestions: {tags}")
+            return tags
             
         except Exception as e:
             logger.error(f"Failed to generate tag suggestions: {str(e)}")
+            logger.error(f"Traceback: {e.__traceback__}")
             return []
 
     async def process_tag_confirmation(self, user_tags: str) -> List[str]:

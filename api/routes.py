@@ -297,10 +297,18 @@ async def audio_callback():
         
         # Generate tag suggestions
         logger.info("Generating tag suggestions")
-        suggested_tags = await tag_service.suggest_tags(
-            transcription=data['transcription'],
-            user_phone=data['from_number']
-        )
+        try:
+            suggested_tags = await tag_service.suggest_tags(
+                transcription=data['transcription'],
+                user_phone=data['from_number']
+            )
+            logger.info(f"Generated tag suggestions: {suggested_tags}")
+        except Exception as e:
+            logger.error(f"Failed to generate tag suggestions: {str(e)}")
+            suggested_tags = []
+        
+        # Store thought ID for tag confirmation
+        sms_service._store_pending_thought(data['from_number'], thought_record['id'])
         
         # Send transcription and tag suggestions
         message = (
