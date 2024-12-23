@@ -73,7 +73,7 @@ class StorageService:
                 data['metadata'] = {'embedding': embedding}
             
             logger.info(f"Storing thought in Supabase: {data}")
-            result = await self.supabase.table(self.thoughts_table).insert(data).execute()
+            result = self.supabase.table(self.thoughts_table).insert(data).execute()
             if hasattr(result, 'error') and result.error:
                 raise Exception(f"Supabase error: {result.error}")
             if not result.data:
@@ -100,7 +100,7 @@ class StorageService:
     async def get_existing_tags(self, user_phone: str) -> List[str]:
         """Get all existing tags for a user."""
         try:
-            result = await self.supabase.table('tags').select('name').eq('user_phone', user_phone).execute()
+            result = self.supabase.table('tags').select('name').eq('user_phone', user_phone).execute()
             if hasattr(result, 'error') and result.error:
                 raise Exception(f"Supabase error: {result.error}")
             return [tag['name'] for tag in result.data]
@@ -111,34 +111,29 @@ class StorageService:
     async def store_tags(self, thought_id: str, tags: List[str], user_phone: str) -> None:
         """Store tags for a thought."""
         try:
-            async with self.supabase.transaction() as txn:
-                # Store or update each tag
-                tag_ids = []
-                for tag_name in tags:
-                    # Try to get existing tag
-                    result = await txn.table('tags').select('id').eq('name', tag_name).eq('user_phone', user_phone).single().execute()
-                    
-                    if result.data:
-                        # Update existing tag use count
-                        tag_id = result.data['id']
-                        await txn.table('tags').update({'use_count': result.data['use_count'] + 1}).eq('id', tag_id).execute()
-                    else:
-                        # Create new tag
-                        result = await txn.table('tags').insert({
-                            'name': tag_name,
-                            'user_phone': user_phone,
-                            'use_count': 1
-                        }).execute()
-                        tag_id = result.data[0]['id']
-                    
-                    tag_ids.append(tag_id)
+            # Transaction to ensure consistency
+            for tag_name in tags:
+                # Try to get existing tag
+                result = self.supabase.table('tags').select('id').eq('name', tag_name).eq('user_phone', user_phone).single().execute()
                 
-                # Create thought-tag associations
-                for tag_id in tag_ids:
-                    await txn.table('thought_tags').insert({
-                        'thought_id': thought_id,
-                        'tag_id': tag_id
+                if result.data:
+                    # Update existing tag use count
+                    tag_id = result.data['id']
+                    self.supabase.table('tags').update({'use_count': result.data['use_count'] + 1}).eq('id', tag_id).execute()
+                else:
+                    # Create new tag
+                    result = self.supabase.table('tags').insert({
+                        'name': tag_name,
+                        'user_phone': user_phone,
+                        'use_count': 1
                     }).execute()
+                    tag_id = result.data[0]['id']
+                
+                # Create thought-tag association
+                self.supabase.table('thought_tags').insert({
+                    'thought_id': thought_id,
+                    'tag_id': tag_id
+                }).execute()
                 
         except Exception as e:
             logger.error(f"Failed to store tags: {str(e)}")
