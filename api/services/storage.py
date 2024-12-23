@@ -40,7 +40,7 @@ class StorageService:
             }
             
             logger.info(f"Storing user message: {user_data}")
-            result = self.supabase.table(self.messages_table).insert(user_data).execute()
+            result = await self.supabase.table(self.messages_table).insert(user_data).execute()
             if hasattr(result, 'error') and result.error:
                 raise Exception(f"Supabase error: {result.error}")
             
@@ -53,7 +53,7 @@ class StorageService:
                     'created_at': datetime.now().isoformat()
                 }
                 logger.info(f"Storing assistant response: {response_data}")
-                result = self.supabase.table(self.messages_table).insert(response_data).execute()
+                result = await self.supabase.table(self.messages_table).insert(response_data).execute()
                 if hasattr(result, 'error') and result.error:
                     raise Exception(f"Supabase error storing response: {result.error}")
                 
@@ -61,7 +61,8 @@ class StorageService:
             logger.error(f"Failed to store chat message: {str(e)}")
             raise
 
-    def store_thought(self, from_number: str, thought: str, embedding: Optional[List[float]] = None) -> None:
+    async def store_thought(self, from_number: str, thought: str, embedding: Optional[List[float]] = None) -> Dict:
+        """Store a thought in the database"""
         try:
             data = {
                 'user_phone': from_number,
@@ -72,10 +73,12 @@ class StorageService:
                 data['metadata'] = {'embedding': embedding}
             
             logger.info(f"Storing thought in Supabase: {data}")
-            result = self.supabase.table(self.thoughts_table).insert(data).execute()
+            result = await self.supabase.table(self.thoughts_table).insert(data).execute()
             if hasattr(result, 'error') and result.error:
                 raise Exception(f"Supabase error: {result.error}")
-            return result.data[0] if result.data else None
+            if not result.data:
+                raise Exception("No data returned from thought storage")
+            return result.data[0]
         except Exception as e:
             logger.error(f"Failed to store thought: {str(e)}")
             raise
@@ -93,3 +96,50 @@ class StorageService:
         except Exception as e:
             logger.error(f"Thought search error: {str(e)}")
             return []
+
+    async def get_existing_tags(self, user_phone: str) -> List[str]:
+        """Get all existing tags for a user."""
+        try:
+            result = await self.supabase.table('tags').select('name').eq('user_phone', user_phone).execute()
+            if hasattr(result, 'error') and result.error:
+                raise Exception(f"Supabase error: {result.error}")
+            return [tag['name'] for tag in result.data]
+        except Exception as e:
+            logger.error(f"Failed to get existing tags: {str(e)}")
+            return []
+
+    async def store_tags(self, thought_id: str, tags: List[str], user_phone: str) -> None:
+        """Store tags for a thought."""
+        try:
+            async with self.supabase.transaction() as txn:
+                # Store or update each tag
+                tag_ids = []
+                for tag_name in tags:
+                    # Try to get existing tag
+                    result = await txn.table('tags').select('id').eq('name', tag_name).eq('user_phone', user_phone).single().execute()
+                    
+                    if result.data:
+                        # Update existing tag use count
+                        tag_id = result.data['id']
+                        await txn.table('tags').update({'use_count': result.data['use_count'] + 1}).eq('id', tag_id).execute()
+                    else:
+                        # Create new tag
+                        result = await txn.table('tags').insert({
+                            'name': tag_name,
+                            'user_phone': user_phone,
+                            'use_count': 1
+                        }).execute()
+                        tag_id = result.data[0]['id']
+                    
+                    tag_ids.append(tag_id)
+                
+                # Create thought-tag associations
+                for tag_id in tag_ids:
+                    await txn.table('thought_tags').insert({
+                        'thought_id': thought_id,
+                        'tag_id': tag_id
+                    }).execute()
+                
+        except Exception as e:
+            logger.error(f"Failed to store tags: {str(e)}")
+            raise

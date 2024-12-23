@@ -11,56 +11,46 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 class SMSService:
-    def __init__(self, twilio_client, phone_number: str, audio_service=None, storage_service=None, chat_service=None):
+    def __init__(self, twilio_client, phone_number: str, audio_service=None, storage_service=None, chat_service=None, tag_service=None):
         self.client = twilio_client
         self.phone_number = phone_number
         self.audio = audio_service
         self.storage = storage_service
         self.chat = chat_service
+        self.tags = tag_service
         logger.info(f"SMS service initialized with phone number: {phone_number}")
 
     async def handle_message(self, from_number: str, message: str, media_url: Optional[str] = None, content_type: Optional[str] = None) -> None:
         """Handle incoming SMS message"""
         try:
-            if media_url:
-                # Handle audio message
-                logger.info(f"Processing audio from {from_number}...")
-                transcription = await self.audio.process_audio(media_url, content_type)
-                
-                if not transcription:
-                    logger.error("Failed to get transcription from audio")
+            # Check for pending tag confirmation
+            pending_thought_id = self._get_pending_thought(from_number)
+            
+            if pending_thought_id and not media_url:
+                # This is a tag confirmation message
+                if message.lower() == 'skip':
+                    del self._pending_thoughts[from_number]
+                    await self.send_sms(from_number, "Skipped tagging. Your thought has been saved!")
                     return
                 
-                # Store the transcribed message
-                await self.storage.store_chat_message(
-                    message=transcription,
-                    from_number=from_number
+                # Process tag confirmation
+                confirmed_tags = await self.tags.process_tag_confirmation(message)
+                await self.tags.store_thought_tags(pending_thought_id, confirmed_tags, from_number)
+                
+                del self._pending_thoughts[from_number]
+                await self.send_sms(
+                    from_number,
+                    f"Tags added: {', '.join(confirmed_tags)}\nYour thought has been saved!"
                 )
-                
-                # Process the transcribed message
-                response = await self.chat.process_message(
-                    message=transcription,
-                    user_phone=from_number
-                )
-                
-                # Send the response via SMS
-                logger.info(f"Sending SMS response to {from_number}: {response}")
-                await self.send_message(to=from_number, body=response)
-                
-                return response
+                return
+            
+            # Handle normal message flow
+            if media_url:
+                # Handle audio message
+                return await self.handle_audio_message(from_number, media_url, content_type)
             else:
                 # Handle text message
-                logger.info(f"Processing text from {from_number}: {message}...")
-                response = await self.chat.process_message(
-                    message=message,
-                    user_phone=from_number
-                )
-                
-                # Send the response via SMS
-                logger.info(f"Sending SMS response to {from_number}: {response}")
-                await self.send_message(to=from_number, body=response)
-                
-                return response
+                return await self.handle_text_message(from_number, message)
         except Exception as e:
             logger.error(f"Failed to handle message: {str(e)}")
             raise
@@ -83,13 +73,23 @@ class SMSService:
             logger.info(f"Audio transcribed: {audio_transcribed}")
             
             # Store the transcribed thought
-            await self.storage.store_thought(from_number, audio_transcribed)
+            thought_data = await self.storage.store_thought(from_number, audio_transcribed)
+            thought_id = thought_data['id']
             
-            # Send confirmation
+            # Generate tag suggestions
+            suggested_tags = await self.tags.suggest_tags(audio_transcribed, from_number)
+            
+            # Send transcription and tag suggestions
             await self.send_sms(
                 from_number,
-                "I've recorded your thought! Here's what I heard: " + audio_transcribed
+                f"I've recorded your thought! Here's what I heard: {audio_transcribed}\n\n" +
+                f"Suggested tags: {', '.join(suggested_tags)}\n" +
+                "Reply with your chosen tags (comma-separated) or 'skip' to skip tagging."
             )
+            
+            # Store the thought ID in temporary storage for tag confirmation
+            self._store_pending_thought(from_number, thought_id)
+            
         except Exception as e:
             logger.error(f"Failed to handle audio message: {str(e)}")
             raise
@@ -98,10 +98,15 @@ class SMSService:
         """Send SMS message"""
         try:
             logger.info(f"Sending SMS response: {message[:20]}...")
-            self.client.messages.create(
-                body=message,
-                from_=self.phone_number,
-                to=to_number
+            # Run Twilio API call in an executor to prevent blocking
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.messages.create(
+                    body=message,
+                    from_=self.phone_number,
+                    to=to_number
+                )
             )
         except Exception as e:
             logger.error(f"Failed to send SMS: {str(e)}")
@@ -122,12 +127,43 @@ class SMSService:
         """Send an SMS message using Twilio"""
         try:
             logger.info(f"Sending message to {to}")
-            message = self.client.messages.create(
-                to=to,
-                from_=self.phone_number,
-                body=body
+            # Run Twilio API call in an executor to prevent blocking
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.client.messages.create(
+                    body=body,
+                    from_=self.phone_number,
+                    to=to
+                )
             )
             logger.info(f"Message sent successfully: {message.sid}")
         except Exception as e:
             logger.error(f"Failed to send message: {str(e)}")
             raise
+
+    def _store_pending_thought(self, user_phone: str, thought_id: str) -> None:
+        """Store thought ID waiting for tag confirmation."""
+        # You might want to use a proper temporary storage solution in production
+        if not hasattr(self, '_pending_thoughts'):
+            self._pending_thoughts = {}
+        self._pending_thoughts[user_phone] = {
+            'thought_id': thought_id,
+            'timestamp': datetime.now()
+        }
+
+    def _get_pending_thought(self, user_phone: str) -> Optional[str]:
+        """Get pending thought ID for tag confirmation."""
+        if not hasattr(self, '_pending_thoughts'):
+            return None
+        
+        pending = self._pending_thoughts.get(user_phone)
+        if not pending:
+            return None
+            
+        # Check if the pending thought is still valid (within 5 minutes)
+        if datetime.now() - pending['timestamp'] > timedelta(minutes=5):
+            del self._pending_thoughts[user_phone]
+            return None
+            
+        return pending['thought_id']

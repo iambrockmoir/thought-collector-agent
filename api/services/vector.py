@@ -38,7 +38,7 @@ class VectorService:
         # Add OpenAI client initialization
         self.openai_client = OpenAI()
 
-    def store_embedding(self, text: str, metadata: dict, phone_number: str) -> bool:
+    async def store_embedding(self, text: str, metadata: dict, phone_number: str) -> bool:
         """Store text embedding in vector database with user's phone number"""
         try:
             if not self.pinecone_index:
@@ -46,13 +46,13 @@ class VectorService:
                 return False
 
             # Generate embedding
-            embedding = self._get_embedding(text)
+            embedding = await self._get_embedding(text)
             
             # Add phone number to metadata
             metadata['phone_number'] = phone_number
             
             # Store in Pinecone
-            self.pinecone_index.upsert(
+            await self.pinecone_index.upsert(
                 vectors=[{
                     'id': str(uuid.uuid4()),
                     'values': embedding,
@@ -66,13 +66,15 @@ class VectorService:
             logger.error(f"Failed to store embedding: {str(e)}")
             return False
 
-    def _get_embedding(self, text: str) -> List[float]:
+    async def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text using OpenAI"""
         try:
-            response = self.openai_client.embeddings.create(
+            response = await self.openai_client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
             )
+            if not response.data:
+                raise Exception("No embedding data returned from OpenAI")
             return response.data[0].embedding
         except Exception as e:
             logger.error(f"Failed to get embedding: {str(e)}")
@@ -81,10 +83,10 @@ class VectorService:
     async def search(self, query: str, phone_number: str, limit: int = 5) -> List[Dict]:
         try:
             # 1. Convert query to embedding vector
-            embedding = await self.get_embedding(query)
+            embedding = await self._get_embedding(query)
             
             # 2. Search Pinecone for similar vectors with phone number filter
-            results = self.pinecone_index.query(
+            results = await self.pinecone_index.query(
                 vector=embedding,
                 top_k=limit,
                 include_metadata=True,
@@ -98,20 +100,43 @@ class VectorService:
     async def get_embedding(self, text: str) -> List[float]:
         """Get embeddings for a text string using OpenAI"""
         try:
-            # No await needed for OpenAI v1.x client
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text
-            )
-            return response.data[0].embedding
+            # Use the internal _get_embedding method for consistency
+            return await self._get_embedding(text)
         except Exception as e:
             logger.error(f"Error getting embedding: {str(e)}")
             raise
 
-    def upsert(self, vectors, metadata=None):
+    async def upsert(self, vectors, metadata=None):
+        """Upsert vectors to Pinecone"""
         try:
-            self.pinecone_index.upsert(vectors=vectors, metadata=metadata)
+            await self.pinecone_index.upsert(vectors=vectors, metadata=metadata)
             return True
         except Exception as e:
             logger.error(f"Error upserting vectors: {str(e)}")
+            return False
+
+    async def update_metadata(self, thought_id: str, metadata_update: Dict) -> bool:
+        """Update metadata for a specific vector."""
+        try:
+            # Get current vector and metadata
+            vector_data = self.pinecone_index.fetch(ids=[thought_id])
+            
+            if not vector_data.vectors:
+                logger.error(f"Vector not found for thought_id: {thought_id}")
+                return False
+                
+            # Merge existing metadata with updates
+            current_metadata = vector_data.vectors[thought_id].metadata
+            updated_metadata = {**current_metadata, **metadata_update}
+            
+            # Update vector with new metadata
+            self.pinecone_index.update(
+                id=thought_id,
+                metadata=updated_metadata
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update vector metadata: {str(e)}")
             return False

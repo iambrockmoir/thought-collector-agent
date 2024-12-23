@@ -16,6 +16,7 @@ from .services.chat import ChatService
 from .services.sms import SMSService
 from .services.storage import StorageService
 from .services.vector import VectorService
+from .services.tags import TagService
 from . import settings
 
 # Configure detailed logging
@@ -97,13 +98,18 @@ try:
         openai_client=openai_client,
         storage_service=storage_service
     )
+
+    logger.info("Initializing Tag Service...")
+    tag_service = TagService(storage_service, vector_service)
+    logger.info("Tag Service initialized successfully")
     
     sms_service = SMSService(
         twilio_client=twilio_client,
         phone_number=settings.twilio_phone_number,
         audio_service=audio_service,
         storage_service=storage_service,
-        chat_service=chat_service
+        chat_service=chat_service,
+        tag_service=tag_service
     )
     
     logger.info("All services initialized successfully")
@@ -265,7 +271,7 @@ async def audio_callback():
         
         # Store in Supabase
         logger.info(f"Storing thought in Supabase for user: {data['from_number']}")
-        thought_record = storage_service.store_thought(
+        thought_record = await storage_service.store_thought(
             data['from_number'],
             data['transcription']
         )
@@ -280,24 +286,31 @@ async def audio_callback():
                 'created_at': thought_record['created_at']
             }
             logger.info(f"Embedding metadata: {metadata}")
-            vector_service.store_embedding(
+            await vector_service.store_embedding(
                 data['transcription'],
-                metadata=metadata
+                metadata=metadata,
+                phone_number=data['from_number']
             )
             logger.info("Successfully stored embedding in Pinecone")
         else:
             logger.warning("Vector service not available - skipping embedding storage")
         
-        # Generate and send response
-        logger.info("Generating chat response")
-        response = await chat_service.process_message(
-            user_phone=data['from_number'],
-            message=data['transcription']
+        # Generate tag suggestions
+        logger.info("Generating tag suggestions")
+        suggested_tags = await tag_service.suggest_tags(
+            transcription=data['transcription'],
+            user_phone=data['from_number']
         )
-        logger.info(f"Generated chat response: {response}")
+        
+        # Send transcription and tag suggestions
+        message = (
+            f"I've recorded your thought! Here's what I heard: {data['transcription']}\n\n"
+            f"Suggested tags: {', '.join(suggested_tags)}\n"
+            "Reply with your chosen tags (comma-separated) or 'skip' to skip tagging."
+        )
         
         logger.info(f"Sending SMS response to {data['from_number']}")
-        await sms_service.send_message(data['from_number'], response)
+        await sms_service.send_message(data['from_number'], message)
         logger.info("Successfully sent SMS response")
         
         logger.info("Audio callback processing completed successfully")
